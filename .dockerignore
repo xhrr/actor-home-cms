@@ -1,0 +1,8 @@
+node_modules
+dist
+.git
+.deploy-stage
+uploads
+data/*.tmp
+*.log
+.DS_Store

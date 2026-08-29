@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Actor Home CMS</title>
+<link rel="stylesheet" href="/admin/css/admin.css">
+</head>
+<body>
+
+<div class="app">
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar__header">
+            <h1 class="sidebar__logo">Actor Home CMS</h1>
+        </div>
+        <nav class="sidebar__nav" id="sidebarNav">
+            <a class="sidebar__link active" data-section="actor">演员信息</a>
+            <a class="sidebar__link" data-section="hero">首页 Hero</a>
+            <a class="sidebar__link" data-section="works">代表作品</a>
+            <a class="sidebar__link" data-section="gallery">写真/图集</a>
+            <a class="sidebar__link" data-section="news">动态</a>
+            <a class="sidebar__link" data-section="awards">荣誉</a>
+            <a class="sidebar__link" data-section="schedule">行程</a>
+            <a class="sidebar__link" data-section="about">关于</a>
+            <a class="sidebar__link" data-section="social">社交链接</a>
+            <a class="sidebar__link" data-section="footer">版权信息</a>
+            <div class="sidebar__divider"></div>
+            <a class="sidebar__link" data-section="media">媒体库</a>
+            <a class="sidebar__link" data-section="plugins">插件管理</a>
+            <a class="sidebar__link" data-section="export">导出部署</a>
+        </nav>
+        <div class="sidebar__footer">
+            <a href="#" class="sidebar__preview" id="btnPreview" title="打开实时预览">预览网站</a>
+        </div>
+    </aside>
+
+    <!-- Mobile toggle -->
+    <button class="mobile-toggle" id="mobileToggle" aria-label="菜单">
+        <span></span><span></span><span></span>
+    </button>
+
+    <!-- Main Content -->
+    <main class="main" id="mainContent">
+        <div class="topbar">
+            <h2 class="topbar__title" id="topbarTitle">演员信息</h2>
+            <div class="topbar__actions">
+                <span class="topbar__status" id="saveStatus"></span>
+                <button class="btn btn--primary" id="btnSave">保存修改</button>
+            </div>
+        </div>
+
+        <!-- Sections -->
+        <div id="section-actor" class="section-card active">
+            <div class="section-header">
+                <h3>演员信息</h3>
+                <p>主页核心资料</p>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>中文名</label>
+                    <input type="text" id="actor-name">
+                </div>
+                <div class="form-group">
+                    <label>英文名</label>
+                    <input type="text" id="actor-nameEn">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>定位语 / Tagline</label>
+                <input type="text" id="actor-tagline">
+            </div>
+            <div class="form-group">
+                <label>头像 URL</label>
+                <input type="text" id="actor-avatar">
+            </div>
+            <div class="form-group">
+                <label>封面 URL</label>
+                <input type="text" id="actor-cover">
+            </div>
+        </div>
+
+        <div id="section-hero" class="section-card">
+            <div class="section-header">
+                <h3>首页 Hero</h3>
+                <p>二选一：经典整屏 / 竖切分栏</p>
+            </div>
+            <div class="form-group">
+                <label class="toggle-label">
+                    <input type="checkbox" id="hero-enabled"> 启用 Hero 模块
+                </label>
+            </div>
+            <div class="form-group">
+                <label>Hero 模式</label>
+                <select id="hero-mode">
+                    <option value="classic">经典整屏 Hero</option>
+                    <option value="split">竖切分栏 Hero</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>背景图 URL</label>
+                <input type="text" id="hero-image">
+            </div>
+            <div class="form-group">
+                <label>滚动提示文字</label>
+                <input type="text" id="hero-scroll">
+            </div>
+            <div class="form-group" id="hero-split-fields">
+                <label>竖切分栏图片 URL（每行一个，不限数量）</label>
+                <textarea id="hero-split-images" rows="5" placeholder="留空则使用上方背景图拆成多栏"></textarea>
+            </div>
+        </div>
+
+        <div id="section-works" class="section-card">
+            <div class="section-header">
+                <h3>代表作品</h3>
+                <button type="button" class="btn btn--ghost btn--sm" id="btn-add-work">+ 添加分类</button>
+            </div>
+            <div class="form-group">
+                <label class="toggle-label">
+                    <input type="checkbox" id="works-enabled"> 启用代表作品模块
+                </label>
+            </div>
+            <div class="form-group">
+                <label>区域标题</label>
+                <input type="text" id="works-heading" placeholder="例如：代表作品">
+                <p class="form-help">首页默认只展示前 N 个作品，完整列表在 /works.html 展示。</p>
+            </div>
+            <div class="work-category-selector">
+                <div class="form-group">
+                    <label>选择分类</label>
+                    <select id="work-category-select"></select>
+                </div>
+                <div class="work-category-actions">
+                    <button type="button" class="btn btn--ghost btn--sm" id="btn-add-work">+ 添加分类</button>
+                    <button type="button" class="btn btn--ghost btn--sm" id="btn-remove-work-cat">删除当前分类</button>
+                </div>
+            </div>
+            <div id="work-category-panel"></div>
+        </div>
+
+        <div id="section-gallery" class="section-card">
+            <div class="section-header">
+                <h3>写真集管理</h3>
+                <button type="button" class="btn btn--ghost btn--sm" id="btn-add-album">+ 新增写真集</button>
+            </div>
+            <div class="form-group">
+                <label class="toggle-label">
+                    <input type="checkbox" id="gallery-enabled"> 启用写真模块
+                </label>
+            </div>
+            <div class="form-group">
+                <label>区域标题</label>
+                <input type="text" id="gallery-heading" placeholder="例如：写真">
+                <p class="form-help">首页只展示每个写真集的封面，点击封面进入完整写真集。</p>
+            </div>
+            <div id="gallery-albums-list"></div>
+        </div>
+
+        <div id="section-news" class="section-card">
+            <div class="section-header">
+                <h3>动态</h3>
+                <button type="button" class="btn btn--ghost btn--sm" id="btn-add-news">+ 添加动态</button>
+            </div>
+            <div class="form-group">
+                <label class="toggle-label">
+                    <input type="checkbox" id="news-enabled"> 启用动态模块
+                </label>
+            </div>
+            <div class="form-group">
+                <label>区域标题</label>
+                <input type="text" id="news-heading" placeholder="例如：最新动态">
+            </div>
+            <div id="news-list"></div>
+            <p class="form-help">日期建议格式：2026.02；标题保持简短；摘要一句话即可。完整动态页在 /news.html。</p>
+        </div>
+
+        <div id="section-awards" class="section-card">
+            <div class="section-header">
+                <h3>荣誉</h3>
+                <button type="button" class="btn btn--ghost btn--sm" id="btn-add-awards">+ 添加荣誉</button>
+            </div>
+            <div class="form-group">
+                <label class="toggle-label">
+                    <input type="checkbox" id="awards-enabled"> 启用荣誉模块
+                </label>
+            </div>
+            <div class="form-group">
+                <label>区域标题</label>
+                <input type="text" id="awards-heading" placeholder="例如：荣誉奖项">
+            </div>
+            <div id="awards-list"></div>
+            <p class="form-help">年份、奖项名称、颁奖方、关联作品。完整荣誉页在 /awards.html。</p>
+        </div>
+
+        <div id="section-schedule" class="section-card">
+            <div class="section-header">
+                <h3>行程</h3>
+                <button type="button" class="btn btn--ghost btn--sm" id="btn-add-schedule">+ 添加行程</button>
+            </div>
+            <div class="form-group">
+                <label class="toggle-label">
+                    <input type="checkbox" id="schedule-enabled"> 启用行程模块
+                </label>
+            </div>
+            <div class="form-group">
+                <label>区域标题</label>
+                <input type="text" id="schedule-heading" placeholder="例如：近期行程">
+            </div>
+            <div id="schedule-list"></div>
+            <p class="form-help">日期、城市、事项。完整行程页在 /schedule.html。</p>
+        </div>
+
+        <div id="section-about" class="section-card">
+            <div class="section-header">
+                <h3>关于演员</h3>
+            </div>
+            <div class="form-group">
+                <label class="toggle-label">
+                    <input type="checkbox" id="about-visible"> 显示关于分区
+                </label>
+            </div>
+            <div class="form-group">
+                <label>角色 / 头衔</label>
+                <input type="text" id="about-role" placeholder="例如：演员 / 表演者">
+            </div>
+            <div class="form-group">
+                <label>肖像 / 头像 URL</label>
+                <input type="text" id="about-image" placeholder="https://example.com/portrait.jpg">
+                <p class="form-help">建议使用竖图，保持原图比例展示。也可先在媒体库上传后粘贴 URL。</p>
+            </div>
+            <div class="form-group">
+                <label>简介（每行一段）</label>
+                <textarea id="about-bio" rows="5" placeholder="第一段&#10;第二段"></textarea>
+            </div>
+            <div class="form-group">
+                <label>统计（格式：标签=数值，每行一个）</label>
+                <textarea id="about-stats" rows="3" placeholder="剧集=20+&#10;电影=8"></textarea>
+            </div>
+        </div>
+
+        <div id="section-social" class="section-card">
+            <div class="section-header">
+                <h3>社交链接</h3>
+                <button type="button" class="btn btn--ghost btn--sm" id="btn-add-social">+ 添加链接</button>
+            </div>
+            <div id="social-list"></div>
+            <p class="form-help">名称例如：微博、小红书、Instagram；链接请填完整地址，例如 https://weibo.com/xxx。</p>
+        </div>
+
+        <div id="section-footer" class="section-card">
+            <div class="section-header">
+                <h3>版权信息</h3>
+            </div>
+            <div class="form-group">
+                <label class="toggle-label">
+                    <input type="checkbox" id="footer-enabled"> 启用页脚模块
+                </label>
+            </div>
+            <div class="form-group">
+                <label>版权文字</label>
+                <input type="text" id="footer-copyright">
+            </div>
+        </div>
+
+        <div id="section-media" class="section-card">
+            <div class="section-header">
+                <h3>媒体库</h3>
+                <label class="btn btn--ghost btn--sm" for="media-upload">上传图片</label>
+                <input type="file" id="media-upload" accept="image/*" multiple style="display:none">
+            </div>
+            <div id="media-list" class="media-grid"></div>
+        </div>
+
+        <div id="section-modules" class="section-card">
+            <div class="section-header">
+                <h3>模块管理</h3>
+                <p>控制首页模块显隐、顺序，并支持无限新增自定义模块</p>
+            </div>
+            <div class="module-add">
+                <select id="module-add-type">
+                    <option value="text">自定义文本</option>
+                    <option value="images">自定义图片</option>
+                    <option value="hero">Hero</option>
+                    <option value="hero-split">竖切 Hero</option>
+                    <option value="about">关于</option>
+                    <option value="works">作品</option>
+                    <option value="news">动态</option>
+                    <option value="awards">荣誉</option>
+                    <option value="schedule">行程</option>
+                    <option value="footer">页脚</option>
+                </select>
+                <button type="button" class="btn btn--ghost btn--sm" id="btn-add-module">+ 添加模块</button>
+            </div>
+            <div id="modules-list"></div>
+        </div>
+
+        <div id="section-plugins" class="section-card">
+            <div class="section-header">
+                <h3>插件管理</h3>
+                <p>启用/停用插件，编辑插件数据</p>
+            </div>
+            <div id="plugins-list"></div>
+        </div>
+
+        <div id="section-export" class="section-card">
+            <div class="section-header">
+                <h3>导出部署</h3>
+                <p>生成纯静态站点并打包 ZIP</p>
+            </div>
+            <div class="export-actions">
+                <button class="btn btn--primary" id="btn-export">导出到 dist/</button>
+                <a class="btn btn--ghost" id="btn-download" href="/api/export/download">下载 ZIP</a>
+            </div>
+            <div id="export-plugin-actions" class="export-actions" style="margin-top:1rem"></div>
+
+            <div class="export-readme-editor" style="margin-top:2rem">
+                <div class="section-header">
+                    <h3>导出 README</h3>
+                    <button type="button" class="btn btn--ghost btn--sm" id="btn-save-readme">保存 README</button>
+                </div>
+                <p class="form-help">这个 README 会随 dist/ 一起导出，包含 GitHub Issues 提交模板。</p>
+                <textarea id="readme-editor" rows="16" style="width:100%;font-family:monospace;font-size:0.85rem;line-height:1.6"></textarea>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Live Preview Panel -->
+<div id="previewPanel" class="preview-panel" style="display:none">
+    <div class="preview-panel__bar">
+        <span>实时预览</span>
+        <button class="btn btn--ghost btn--sm" id="btnRefreshPreview">刷新</button>
+        <button class="btn btn--ghost btn--sm" id="btnClosePreview">关闭</button>
+    </div>
+    <iframe id="previewIframe" src="/" title="实时预览"></iframe>
+</div>
+
+<!-- Toast Container -->
+<div id="toastContainer" class="toast-container"></div>
+
+<script src="/admin/js/admin.js"></script>
+</body>
+</html>

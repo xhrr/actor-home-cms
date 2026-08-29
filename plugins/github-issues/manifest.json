@@ -1,0 +1,11 @@
+{
+  "name": "github-issues",
+  "label": "GitHub Issues 内容更新",
+  "version": "0.1.0",
+  "description": "通过 GitHub Issues 审核后自动更新作品、写真、动态、荣誉、行程，并触发部署。",
+  "author": "Actor CMS",
+  "client": "client.js",
+  "server": "server.js",
+  "admin": "admin.js",
+  "assets": []
+}

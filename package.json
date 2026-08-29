@@ -1,0 +1,19 @@
+{
+  "name": "actor-home-cms",
+  "version": "0.1.0",
+  "private": true,
+  "description": "演员主页 CMS — 完全插件化，Editorial 杂志风默认主题",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1121.0",
+    "adm-zip": "^0.5.17",
+    "archiver": "^7.0.1",
+    "express": "^4.21.0",
+    "multer": "^1.4.5-lts.1",
+    "sharp": "^0.35.4"
+  }
+}

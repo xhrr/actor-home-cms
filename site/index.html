@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>演员主页</title>
+    <meta name="description" content="演员主页 — 作品、动态与写真">
+    <link rel="stylesheet" href="/css/editorial.css">
+    <script src="/js/config.js"></script>
+    <script src="/js/cms.js"></script>
+</head>
+<body>
+    <!-- 固定导航 -->
+    <nav class="nav" id="nav">
+        <a href="#hero" class="nav__logo" id="navLogo"></a>
+        <button class="nav__toggle" id="navToggle" aria-label="菜单" aria-expanded="false">
+            <span></span><span></span><span></span>
+        </button>
+        <ul class="nav__links" id="navLinks"></ul>
+    </nav>
+
+    <!-- 模块容器：所有模块由 main.js 渲染 -->
+    <main id="app"></main>
+
+    <script src="/js/core-modules.js"></script>
+    <script src="/js/main.js"></script>
+</body>
+</html>

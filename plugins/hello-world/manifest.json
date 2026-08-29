@@ -1,0 +1,12 @@
+{
+  "name": "hello-world",
+  "label": "Hello World",
+  "version": "0.1.0",
+  "description": "最小插件示例：新增一个 say-hello 模块，展示插件系统基本用法。",
+  "author": "Actor CMS",
+  "client": "client.js",
+  "server": "server.js",
+  "admin": "admin.js",
+  "assets": ["assets/"],
+  "modules": ["hello"]
+}

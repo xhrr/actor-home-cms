@@ -1,0 +1,11 @@
+{
+  "name": "cloudflare-r2",
+  "label": "Cloudflare R2 图片上传",
+  "version": "0.1.0",
+  "description": "上传图片到 Cloudflare R2 存储桶，并返回可访问外链。",
+  "author": "Actor CMS",
+  "client": "client.js",
+  "server": "server.js",
+  "admin": "admin.js",
+  "assets": []
+}

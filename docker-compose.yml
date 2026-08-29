@@ -1,0 +1,17 @@
+version: "3.9"
+
+services:
+  actor-home:
+    build: .
+    container_name: actor-home-cms
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+    volumes:
+      - ./data:/app/data
+      - ./uploads:/app/uploads
+      - ./themes:/app/themes
+      - ./plugins:/app/plugins
+      - ./dist:/app/dist

@@ -1,0 +1,12 @@
+node_modules/
+dist/
+uploads/
+data/plugins/*.tmp
+*.log
+.DS_Store
+
+# 运行数据（含密钥）
+data/
+.deploy-stage/
+# 会话交接文档（机器相关路径）
+START_HERE.md
