@@ -501,6 +501,11 @@ a {
     max-width: 30rem;
 }
 
+.work-item__source {
+    margin: 0.5rem 0 0;
+    font-size: 0.8rem;
+}
+
 /* ===================================================================
    Gallery
    =================================================================== */
@@ -1294,4 +1299,8 @@ a {
     font-size: 0.95rem;
     color: var(--fg-60);
     line-height: 1.75;
+}
+
+.work-detail__source {
+    margin: 1rem 0 0;
 }

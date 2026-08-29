@@ -813,6 +813,55 @@ a { text-decoration: none; color: inherit; }
     transform: translateX(14px);
 }
 
+/* ========== Themes ========== */
+.theme-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 0.9rem;
+    margin-top: 1rem;
+}
+.theme-card {
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 1rem;
+    background: #fff;
+}
+.theme-card.is-active {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 1px var(--color-accent);
+}
+.theme-card__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.5rem;
+}
+.theme-card__title {
+    margin: 0;
+    font-size: 0.95rem;
+}
+.theme-card__title small {
+    font-weight: normal;
+    color: var(--color-text-muted);
+    margin-left: 0.3rem;
+}
+.theme-card__status {
+    font-size: 0.7rem;
+    color: var(--color-accent);
+    letter-spacing: 0.1em;
+}
+.theme-card__desc {
+    margin: 0.5rem 0 0.25rem;
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    line-height: 1.5;
+}
+.theme-card__meta {
+    margin: 0 0 0.75rem;
+    font-size: 0.7rem;
+    color: var(--color-text-muted);
+}
+
 /* ========== Disabled Module Nav ========== */
 .sidebar__link.is-disabled {
     color: #777;

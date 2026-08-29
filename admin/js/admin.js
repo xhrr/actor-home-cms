@@ -64,6 +64,7 @@
         renderModules();
         renderPlugins();
         renderMedia();
+        renderThemes();
     }
 
     function findModule(type) {
@@ -188,6 +189,11 @@
                         <label>海报 URL</label>
                         <input type="text" data-w-poster="${key}" value="${window.AdminCMS.esc(item.poster || item.image || '')}" placeholder="https://example.com/poster.jpg">
                     </div>
+                </div>
+                <div class="form-group">
+                    <label>原始链接</label>
+                    <input type="text" data-w-source="${key}" value="${window.AdminCMS.esc(item.sourceUrl || '')}" placeholder="https://weibo.com/... 或豆瓣/官方页面">
+                    <p class="form-help">图集页会显示「查看原始链接」跳转按钮。</p>
                 </div>
                 <div class="form-group">
                     <label>简介 / 一句话梗概</label>
@@ -564,6 +570,7 @@
                     type: item.querySelector(`[data-w-type="${key}"]`).value,
                     director: item.querySelector(`[data-w-director="${key}"]`).value,
                     poster: item.querySelector(`[data-w-poster="${key}"]`).value,
+                    sourceUrl: item.querySelector(`[data-w-source="${key}"]`).value,
                     synopsis: item.querySelector(`[data-w-synopsis="${key}"]`).value,
                     images: item.querySelector(`[data-w-images="${key}"]`).value.split('\n').map(s => s.trim()).filter(Boolean)
                 }));
@@ -637,6 +644,83 @@
             });
         });
         config.gallery.albums = albums;
+    }
+
+    async function renderThemes() {
+        try {
+            const res = await fetch('/api/themes');
+            const data = await res.json();
+            const container = $('#theme-list');
+            if (!container) return;
+            const active = data.active;
+            const items = [
+                {
+                    name: '__default__',
+                    label: 'Editorial（内置默认）',
+                    description: '编辑杂志风默认主题，无需上传。',
+                    builtin: true,
+                    isActive: !active
+                }
+            ].concat((data.themes || []).map(t => Object.assign({}, t, { isActive: active === t.name })));
+
+            container.innerHTML = items.map(t => `
+                <div class="theme-card${t.isActive ? ' is-active' : ''}">
+                    <div class="theme-card__head">
+                        <h4 class="theme-card__title">${window.AdminCMS.esc(t.label || t.name)} <small>${t.builtin ? '内置' : window.AdminCMS.esc(t.name)}</small></h4>
+                        <span class="theme-card__status">${t.isActive ? '使用中' : ''}</span>
+                    </div>
+                    <p class="theme-card__desc">${window.AdminCMS.esc(t.description || '')}</p>
+                    <p class="theme-card__meta">${t.builtin ? '' : (t.hasHtml ? '含 index.html ' : '') + (t.hasCss ? '含 css/' : '')}</p>
+                    <button class="btn btn--sm ${t.isActive ? 'btn--ghost' : 'btn--primary'}" data-activate-theme="${window.AdminCMS.esc(t.name)}" ${t.isActive ? 'disabled' : ''}>${t.isActive ? '使用中' : '启用'}</button>
+                </div>
+            `).join('') || '<p class="form-help">暂无主题。</p>';
+        } catch (e) {
+            console.error('theme load error', e);
+        }
+    }
+
+    function bindTheme() {
+        const input = $('#theme-upload');
+        if (input) {
+            input.addEventListener('change', async () => {
+                if (!input.files.length) return;
+                const fd = new FormData();
+                fd.append('theme', input.files[0]);
+                try {
+                    const res = await fetch('/api/themes/upload', { method: 'POST', body: fd });
+                    const json = await res.json();
+                    if (res.ok) {
+                        showToast('✅ 主题上传成功：' + json.name);
+                        await renderThemes();
+                    } else {
+                        showToast(json.error || '主题上传失败', true);
+                    }
+                } catch (err) {
+                    showToast('主题上传失败: ' + err.message, true);
+                }
+                input.value = '';
+            });
+        }
+
+        const list = $('#theme-list');
+        if (list) {
+            list.addEventListener('click', async e => {
+                const btn = e.target.closest('[data-activate-theme]');
+                if (!btn || btn.disabled) return;
+                try {
+                    const res = await fetch('/api/themes/' + encodeURIComponent(btn.dataset.activateTheme) + '/activate', { method: 'POST' });
+                    const json = await res.json();
+                    if (res.ok) {
+                        showToast('✅ 已启用主题');
+                        await renderThemes();
+                    } else {
+                        showToast(json.error || '启用失败', true);
+                    }
+                } catch (err) {
+                    showToast('启用失败: ' + err.message, true);
+                }
+            });
+        }
     }
 
     function collectNews() {
@@ -1106,6 +1190,7 @@
     function bindGlobal() {
         bindSectionNav();
         bindMedia();
+        bindTheme();
         bindAutoSave();
 
         $('#btnPreview').addEventListener('click', e => {

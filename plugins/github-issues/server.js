@@ -87,6 +87,7 @@ function applyIssueToConfig(config, parsed) {
             type: parsed.typeName || parsed.workType || '',
             director: parsed.director || '',
             poster: parsed.poster || parsed.image || (parsed.images && parsed.images[0]) || '',
+            sourceUrl: parsed.sourceurl || parsed.source || parsed.link || '',
             synopsis: parsed.synopsis || parsed.summary || '',
             images: parsed.images || []
         });

@@ -27,6 +27,7 @@
             <a class="sidebar__link" data-section="footer">版权信息</a>
             <div class="sidebar__divider"></div>
             <a class="sidebar__link" data-section="media">媒体库</a>
+            <a class="sidebar__link" data-section="theme">主题</a>
             <a class="sidebar__link" data-section="plugins">插件管理</a>
             <a class="sidebar__link" data-section="export">导出部署</a>
         </nav>
@@ -270,6 +271,16 @@
                 <input type="file" id="media-upload" accept="image/*" multiple style="display:none">
             </div>
             <div id="media-list" class="media-grid"></div>
+        </div>
+
+        <div id="section-theme" class="section-card">
+            <div class="section-header">
+                <h3>主题</h3>
+                <label class="btn btn--ghost btn--sm" for="theme-upload">上传主题 ZIP</label>
+                <input type="file" id="theme-upload" accept=".zip" style="display:none">
+            </div>
+            <p class="form-help">自定义主题需包含 <code>index.html</code> 或 <code>css/</code> 目录，激活后运行时优先加载主题文件，导出时覆盖 dist。默认使用内置 Editorial 主题。</p>
+            <div id="theme-list" class="theme-grid"></div>
         </div>
 
         <div id="section-modules" class="section-card">

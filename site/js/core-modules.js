@@ -125,6 +125,7 @@ window.CMS.registerModule('hero', function (mod) {
     <div class="works__list">
         ${shown.map(({ cat, ci, ii, item }, idx) => {
             const poster = safeUrl(item.poster || item.image, 'image');
+            const source = safeUrl(item.sourceUrl, 'link');
             const num = String(idx + 1).padStart(2, '0'); // 编号按排序后顺序
             return `
             <article class="work-item" data-index="${ci}-${ii}">
@@ -137,6 +138,7 @@ window.CMS.registerModule('hero', function (mod) {
                     <p class="work-item__meta">${esc(cat.name || item.type || '')} · ${esc(U.formatTime(item.year || item.releaseDate))} · ${esc(item.director || '')}</p>
                     <p class="work-item__role">饰演 ${esc(item.role || '')}</p>
                     <p class="work-item__synopsis">${esc(item.synopsis || '')}</p>
+                    ${source ? `<p class="work-item__source"><a class="hover-underline" href="${source}" target="_blank" rel="noopener">原始链接 ↗</a></p>` : ''}
                 </div>
             </article>`;
         }).join('')}

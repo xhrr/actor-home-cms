@@ -151,6 +151,7 @@
         if (work && work.type && work.type !== catName) metaParts.push(work.type);
         if (work && work.year) metaParts.push(work.year);
         if (work && work.director) metaParts.push(work.director);
+        const source = work ? safeUrl(work.sourceUrl, 'link') : '';
 
         if (top) {
             top.innerHTML = `
@@ -166,6 +167,7 @@
                         </p>
                         <p class="work-detail__role">饰演 ${esc(work.role || '')}</p>
                         <p class="work-detail__synopsis">${esc(work.synopsis || '')}</p>
+                        ${source ? `<p class="work-detail__source"><a class="album-detail__source" href="${source}" target="_blank" rel="noopener">查看原始链接 ↗</a></p>` : ''}
                     </div>
                 ` : ''}
             `;
