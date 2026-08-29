@@ -245,6 +245,17 @@
                         <input type="text" data-album-cover="${ai}" value="${window.AdminCMS.esc(album.cover || '')}" placeholder="https://example.com/cover.jpg">
                     </div>
                 </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>作者</label>
+                        <input type="text" data-album-author="${ai}" value="${window.AdminCMS.esc(album.author || '')}" placeholder="摄影师 / 来源作者">
+                    </div>
+                    <div class="form-group">
+                        <label>原始链接</label>
+                        <input type="text" data-album-source="${ai}" value="${window.AdminCMS.esc(album.sourceUrl || '')}" placeholder="https://weibo.com/... 或原图地址">
+                        <p class="form-help">详情页会显示「原始链接」跳转按钮。</p>
+                    </div>
+                </div>
                 <div class="form-group">
                     <label>照片 URL（每行一个，可多张）</label>
                     <textarea data-album-images="${ai}" rows="5" placeholder="https://example.com/photo1.jpg&#10;https://example.com/photo2.jpg">${(album.images || []).join('\n')}</textarea>
@@ -620,6 +631,8 @@
             albums.push({
                 title: item.querySelector(`[data-album-title="${ai}"]`).value,
                 cover: item.querySelector(`[data-album-cover="${ai}"]`).value || images[0] || '',
+                author: item.querySelector(`[data-album-author="${ai}"]`).value,
+                sourceUrl: item.querySelector(`[data-album-source="${ai}"]`).value,
                 images
             });
         });

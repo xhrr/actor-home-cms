@@ -98,9 +98,12 @@ function applyIssueToConfig(config, parsed) {
         config.gallery.albums.push({
             title: parsed.title || '新写真集',
             cover: parsed.cover || (parsed.images && parsed.images[0]) || '',
+            // 解析器会把 key 转为小写：sourceUrl -> sourceurl；兼容 link/source
+            author: parsed.author || '',
+            sourceUrl: parsed.sourceurl || parsed.source || parsed.link || '',
             images: parsed.images || []
         });
-        return `写真集「${parsed.title || '未命名'}」已添加`;
+        return `写真集「${parsed.title || '未命名'}」已添加` + (parsed.author ? `（作者：${parsed.author}）` : '');
     }
 
     if (type === 'news') {

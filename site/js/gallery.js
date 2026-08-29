@@ -88,6 +88,7 @@
                             </div>
                             <div class="album-card__body">
                                 <h2 class="album-card__title">${esc(album.title || ('写真集 ' + (ai + 1)))}</h2>
+                                ${album.author ? `<span class="album-card__author">作者：${esc(album.author)}</span>` : ''}
                                 <span class="album-card__count">${(album.images || []).length} 张</span>
                             </div>
                         </a>
@@ -101,6 +102,7 @@
 
     function renderAlbum(album, ai) {
         const images = album.images || [];
+        const source = safeUrl(album.sourceUrl, 'link');
         if (top) {
             top.innerHTML = `
                 <div class="album-detail__head">
@@ -108,6 +110,12 @@
                     <h1 class="album-detail__title">${esc(album.title || ('写真集 ' + (ai + 1)))}</h1>
                     <span class="album-detail__count">${images.length} 张</span>
                 </div>
+                ${(album.author || source) ? `
+                    <div class="album-detail__meta">
+                        ${album.author ? `<span class="album-detail__author">作者：${esc(album.author)}</span>` : ''}
+                        ${source ? `<a class="album-detail__source" href="${source}" target="_blank" rel="noopener">查看原始链接 ↗</a>` : ''}
+                    </div>
+                ` : ''}
             `;
         }
 

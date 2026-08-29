@@ -172,6 +172,7 @@ window.CMS.registerModule('hero', function (mod) {
                         <img src="${cover}" alt="${esc(album.title || '写真集')}" loading="lazy" onerror="this.parentElement.classList.add('is-empty')">
                     </div>
                     <h3 class="album-card__title">${esc(album.title || ('写真集 ' + (ai + 1)))}</h3>
+                    ${album.author ? `<span class="album-card__author">作者：${esc(album.author)}</span>` : ''}
                     <span class="album-card__count">${(album.images || []).length} 张</span>
                 </a>
             `;

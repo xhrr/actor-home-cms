@@ -1103,6 +1103,42 @@ a {
     color: var(--fg-40);
 }
 
+.album-card__author {
+    display: block;
+    padding: 0.25rem 1rem 0;
+    font-size: 0.8rem;
+    color: var(--fg-60);
+}
+
+.album-detail__meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem 1.5rem;
+    margin: -1.25rem 0 2.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--fg-10);
+}
+
+.album-detail__author {
+    font-size: 0.85rem;
+    color: var(--fg-60);
+}
+
+.album-detail__source {
+    display: inline-block;
+    font-size: 0.8rem;
+    letter-spacing: 0.08em;
+    color: var(--fg);
+    border-bottom: 1px solid var(--fg-40);
+    transition: color 0.3s ease, border-color 0.3s ease;
+}
+
+.album-detail__source:hover {
+    color: var(--fg-60);
+    border-color: var(--fg-60);
+}
+
 .album-detail__head {
     margin-bottom: 2.5rem;
     display: flex;
