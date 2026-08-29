@@ -27,6 +27,7 @@
                     <div class="form-group">
                         <label>轮询间隔（分钟）</label>
                         <input type="number" id="gi-interval" min="1" value="${window.AdminCMS.esc(data.pollInterval || '10')}">
+                        <p class="form-help">当前生效：<span id="gi-interval-now">…</span></p>
                     </div>
                     <div class="form-group">
                         <label class="toggle-label">
@@ -63,8 +64,29 @@
                 });
             }
 
+            // 从服务器同步当前生效配置（服务器是唯一事实源，防止本地陈旧数据覆盖显示）
+            const syncFromServer = async () => {
+                try {
+                    const res = await fetch('/api/plugins/github-issues/status');
+                    const d = await res.json();
+                    if (!d) return;
+                    const now = document.getElementById('gi-interval-now');
+                    if (now) {
+                        const iv = parseInt(d.pollInterval, 10);
+                        now.textContent = iv ? iv + ' 分钟（保存后立即生效）' : '未设置（默认 10 分钟）';
+                    }
+                    const input = document.getElementById('gi-interval');
+                    if (input && document.activeElement !== input && d.pollInterval != null) {
+                        input.value = d.pollInterval;
+                    }
+                } catch (e) { /* 无视 */ }
+            };
+
             const btn = document.getElementById('gi-check');
             if (!btn) return;
+
+            // 面板渲染后同步一次
+            setTimeout(syncFromServer, 100);
 
             // 保存配置
             const saveData = () => {
@@ -118,6 +140,8 @@
                         status.style.color = '#dc3545';
                     }
                 }
+                // 检查可能更新了服务器配置（lastStatus/lastCheck），同步显示
+                syncFromServer();
             });
         }
     });
