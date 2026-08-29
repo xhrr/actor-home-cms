@@ -170,8 +170,9 @@
                         <input type="text" data-w-role="${key}" value="${window.AdminCMS.esc(item.role || '')}" placeholder="饰演角色">
                     </div>
                     <div class="form-group">
-                        <label>年份</label>
-                        <input type="text" data-w-year="${key}" value="${window.AdminCMS.esc(item.year || '')}" placeholder="2025">
+                        <label>上映时间</label>
+                        <input type="text" data-w-year="${key}" value="${window.AdminCMS.esc(item.year || item.releaseDate || '')}" placeholder="2024 或 2024-05-01">
+                        <p class="form-help">作品将按上映时间倒序展示（新的在前）</p>
                     </div>
                     <div class="form-group">
                         <label>类型</label>

@@ -45,6 +45,49 @@
         return allowed.indexOf(value) >= 0 ? value : fallback;
     }
 
+    /**
+     * 解析上映时间字符串 → 时间戳。
+     * 支持：2024 / 2024-05-01 / 2024/5/1 / 2024.5.1 / 2024年5月1日
+     * 解析失败返回 0（排序时排最后）。
+     */
+    function parseTime(value) {
+        const str = String(value || '').trim();
+        if (!str) return 0;
+        const m = str.match(/^(\d{4})\s*[-/.年]\s*(\d{1,2})\s*[-/.月]\s*(\d{1,2})\s*日?$/);
+        if (m) {
+            const t = new Date(+m[1], +m[2] - 1, +m[3]).getTime();
+            return isNaN(t) ? 0 : t;
+        }
+        const y = str.match(/^(\d{4})/);
+        if (y) {
+            const t = new Date(+y[1], 0, 1).getTime();
+            return isNaN(t) ? 0 : t;
+        }
+        return 0;
+    }
+
+    /** 格式化上映时间：纯年份原样；含日期显示为 2024.05.01 */
+    function formatTime(value) {
+        const str = String(value || '').trim();
+        if (!str) return '';
+        const m = str.match(/^(\d{4})\s*[-/.年]\s*(\d{1,2})\s*[-/.月]\s*(\d{1,2})\s*日?$/);
+        if (m) {
+            const pad = n => String(n).padStart(2, '0');
+            return `${m[1]}.${pad(+m[2])}.${pad(+m[3])}`;
+        }
+        const y = str.match(/^(\d{4})/);
+        return y ? y[1] : str;
+    }
+
+    /** 按时间排序（降序：新的在前），无时间的排最后；返回排序后的副本 */
+    function sortByTime(items, getValue) {
+        return items.slice().sort((a, b) => {
+            const ta = parseTime(getValue ? getValue(a) : (a.year || a.releaseDate));
+            const tb = parseTime(getValue ? getValue(b) : (b.year || b.releaseDate));
+            return tb - ta;
+        });
+    }
+
     function sanitizeHtml(html) {
         if (typeof html !== 'string' || !html.trim()) return '';
         const template = document.createElement('template');
@@ -226,7 +269,10 @@
             cleanUrl,
             safeUrl,
             normalizeChoice,
-            sanitizeHtml
+            sanitizeHtml,
+            parseTime,
+            formatTime,
+            sortByTime
         }
     };
 })();

@@ -60,24 +60,26 @@
 
         const list = selectedCat === null ? categories : categories.filter((_, i) => i === selectedCat);
         container.innerHTML = list.map((cat, ci) => {
-            const items = cat.items || [];
+            // 分类内按上映时间降序排序（保留原始索引，保证图集链接正确）
+            const items = (cat.items || []).map((item, ii) => ({ item, ii }))
+                .sort((a, b) => U.parseTime(b.item.year || b.item.releaseDate) - U.parseTime(a.item.year || a.item.releaseDate));
             if (!items.length) return '';
             const realCi = selectedCat === null ? ci : selectedCat;
             return `
                 <div class="works-category">
                     <h3 class="works-category__title">${esc(cat.name || '代表作品')}</h3>
                     <div class="works__list">
-                        ${items.map((item, ii) => {
+                        ${items.map(({ item, ii }, idx) => {
                             const poster = safeUrl(item.poster || item.image, 'image');
                             return `
                             <article class="work-item">
-                                <div class="work-item__num">${String(ii + 1).padStart(2, '0')}</div>
+                                <div class="work-item__num">${String(idx + 1).padStart(2, '0')}</div>
                                 <a class="work-item__media" href="/gallery.html?cat=${realCi}&work=${ii}">
                                     <img src="${poster}" alt="${esc(item.title)}" loading="lazy" onerror="this.parentElement.classList.add('is-empty')">
                                 </a>
                                 <div class="work-item__info">
                                     <h3 class="work-item__title">${esc(item.title)}</h3>
-                                    <p class="work-item__meta">${esc(cat.name || item.type || '')} · ${esc(item.year || '')} · ${esc(item.director || '')}</p>
+                                    <p class="work-item__meta">${esc(cat.name || item.type || '')} · ${esc(U.formatTime(item.year || item.releaseDate))} · ${esc(item.director || '')}</p>
                                     <p class="work-item__role">饰演 ${esc(item.role || '')}</p>
                                     <p class="work-item__synopsis">${esc(item.synopsis || '')}</p>
                                 </div>

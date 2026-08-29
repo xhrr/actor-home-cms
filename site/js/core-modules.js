@@ -106,13 +106,14 @@ window.CMS.registerModule('hero', function (mod) {
         const limit = mod.limit || 3;
         const heading = works.heading || '代表作品';
 
-        // 把所有分类的作品拍平，首页直接展示前 N 条
+        // 把所有分类的作品拍平，按上映时间降序（新的在前），首页直接展示前 N 条
         const flat = [];
         categories.forEach((cat, ci) => {
             (cat.items || []).forEach((item, ii) => {
                 flat.push({ cat, ci, ii, item });
             });
         });
+        flat.sort((a, b) => U.parseTime(b.item.year || b.item.releaseDate) - U.parseTime(a.item.year || a.item.releaseDate));
         const shown = flat.slice(0, limit);
         const hasAny = flat.length > 0;
         return `
@@ -122,9 +123,9 @@ window.CMS.registerModule('hero', function (mod) {
         <h2 class="section__title">${esc(heading)}</h2>
     </div>
     <div class="works__list">
-        ${shown.map(({ cat, ci, ii, item }) => {
+        ${shown.map(({ cat, ci, ii, item }, idx) => {
             const poster = safeUrl(item.poster || item.image, 'image');
-            const num = String(ii + 1).padStart(2, '0');
+            const num = String(idx + 1).padStart(2, '0'); // 编号按排序后顺序
             return `
             <article class="work-item" data-index="${ci}-${ii}">
                 <div class="work-item__num">${num}</div>
@@ -133,7 +134,7 @@ window.CMS.registerModule('hero', function (mod) {
                 </a>
                 <div class="work-item__info">
                     <h3 class="work-item__title">${esc(item.title)}</h3>
-                    <p class="work-item__meta">${esc(cat.name || item.type || '')} · ${esc(item.year || '')} · ${esc(item.director || '')}</p>
+                    <p class="work-item__meta">${esc(cat.name || item.type || '')} · ${esc(U.formatTime(item.year || item.releaseDate))} · ${esc(item.director || '')}</p>
                     <p class="work-item__role">饰演 ${esc(item.role || '')}</p>
                     <p class="work-item__synopsis">${esc(item.synopsis || '')}</p>
                 </div>
