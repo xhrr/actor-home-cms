@@ -280,7 +280,13 @@ a {
     position: absolute;
     inset: 0;
     /* 底部米色淡入：深色图片上也能保证黑字可读 */
-    background: linear-gradient(to top, rgba(249, 248, 246, 0.95) 0%, rgba(249, 248, 246, 0.45) 28%, rgba(249, 248, 246, 0.1) 70%);
+    background: linear-gradient(to top,
+        rgba(249, 248, 246, 0.95) 0%,
+        rgba(249, 248, 246, 0.8) 10%,
+        rgba(249, 248, 246, 0.55) 26%,
+        rgba(249, 248, 246, 0.3) 46%,
+        rgba(249, 248, 246, 0.12) 66%,
+        rgba(249, 248, 246, 0) 85%);
 }
 
 .hero__content {
@@ -1050,7 +1056,13 @@ a {
     inset: 0;
     z-index: 1;
     pointer-events: none;
-    background: linear-gradient(to top, rgba(249, 248, 246, 0.9) 0%, rgba(249, 248, 246, 0.45) 20%, rgba(249, 248, 246, 0) 45%);
+    background: linear-gradient(to top,
+        rgba(249, 248, 246, 0.92) 0%,
+        rgba(249, 248, 246, 0.78) 8%,
+        rgba(249, 248, 246, 0.55) 18%,
+        rgba(249, 248, 246, 0.3) 32%,
+        rgba(249, 248, 246, 0.12) 45%,
+        rgba(249, 248, 246, 0) 58%);
 }
 
 .split-col {
