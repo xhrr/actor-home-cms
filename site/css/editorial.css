@@ -777,6 +777,49 @@ a {
     max-width: 34rem;
 }
 
+
+/* 行程：日期/城市换行展示 */
+.schedule-item .plugin-list__label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    align-items: flex-start;
+}
+.schedule-date,
+.schedule-city {
+    display: block;
+    font-style: normal;
+}
+.schedule-city {
+    color: var(--fg-40);
+}
+
+/* 行程公告 */
+.schedule-announcement {
+    margin-bottom: 2rem;
+    padding: 1.25rem 1.5rem;
+    border-left: 2px solid var(--fg-20);
+    background: var(--fg-02);
+}
+.schedule-announcement__text {
+    margin: 0;
+    font-size: 0.92rem;
+    line-height: 1.9;
+    color: var(--fg-60);
+    white-space: pre-wrap;
+}
+
+.schedule-announcement__source {
+    margin: 0.6rem 0 0;
+    font-size: 0.78rem;
+}
+
+/* 动态/行程 原始链接 */
+.plugin-list__source {
+    margin: 0.45rem 0 0;
+    font-size: 0.78rem;
+}
+
 /* ===================================================================
    Footer
    =================================================================== */

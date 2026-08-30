@@ -114,7 +114,8 @@ function applyIssueToConfig(config, parsed) {
         data.items.push({
             date: parsed.date || '',
             title: parsed.title || '',
-            summary: parsed.summary || parsed.content || ''
+            summary: parsed.summary || parsed.content || '',
+            sourceUrl: parsed.sourceurl || parsed.source || parsed.link || ''
         });
         return `动态「${parsed.title || '未命名'}」已添加`;
     }
@@ -139,7 +140,8 @@ function applyIssueToConfig(config, parsed) {
         data.items.push({
             date: parsed.date || '',
             city: parsed.city || '',
-            event: parsed.event || parsed.title || ''
+            event: parsed.event || parsed.title || '',
+            sourceUrl: parsed.sourceurl || parsed.source || parsed.link || ''
         });
         return `行程「${parsed.event || parsed.title || '未命名'}」已添加`;
     }

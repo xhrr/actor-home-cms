@@ -295,6 +295,8 @@
                 <div class="form-group">
                     <label>摘要</label>
                     <textarea data-news-summary="${i}" rows="2" placeholder="一句话说明这条动态">${window.AdminCMS.esc(item.summary || '')}</textarea>
+                    <label style="margin-top:0.6rem">原始链接</label>
+                    <input type="text" data-news-source="${i}" value="${window.AdminCMS.esc(item.sourceUrl || '')}" placeholder="https://weibo.com/... 或新闻来源">
                 </div>
             </div>
         `).join('');
@@ -359,9 +361,38 @@
                 <div class="form-group">
                     <label>事项</label>
                     <input type="text" data-sched-event="${i}" value="${window.AdminCMS.esc(item.event || '')}" placeholder="例如：《无声证词》发布会">
+                    <label style="margin-top:0.6rem">原始链接</label>
+                    <input type="text" data-sched-source="${i}" value="${window.AdminCMS.esc(item.sourceUrl || '')}" placeholder="https://weibo.com/... 或官方来源">
                 </div>
             </div>
         `).join('');
+        // 行程公告（微博监控等自动同步，无具体日期）
+        const annContainer = $('#schedule-announcements');
+        if (annContainer) {
+            const announcements = data.announcements || [];
+            annContainer.innerHTML = announcements.map((a, i) => `
+                <div class="content-item admin-content-item" data-announcement-index="${i}">
+                    <div class="content-item__head">
+                        <span class="content-item__name">公告（${window.AdminCMS.esc(a.month || '?')} 月）</span>
+                        <button class="btn--danger" data-remove-announcement="${i}" title="删除公告">×</button>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>月份</label>
+                            <input type="number" min="0" max="12" data-announcement-month="${i}" value="${window.AdminCMS.esc(a.month || '')}" placeholder="1-12">
+                        </div>
+                        <div class="form-group">
+                            <label>原始链接</label>
+                            <input type="text" data-announcement-source="${i}" value="${window.AdminCMS.esc(a.sourceUrl || '')}" placeholder="https://m.weibo.cn/status/...">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>公告内容</label>
+                        <textarea data-announcement-text="${i}" rows="4">${window.AdminCMS.esc(a.text || '')}</textarea>
+                    </div>
+                </div>
+            `).join('') || '<p class="form-help">暂无公告</p>';
+        }
     }
 
     function renderModules() {
@@ -736,7 +767,8 @@
             items.push({
                 date: item.querySelector(`[data-news-date="${i}"]`).value,
                 title: item.querySelector(`[data-news-title="${i}"]`).value,
-                summary: item.querySelector(`[data-news-summary="${i}"]`).value
+                summary: item.querySelector(`[data-news-summary="${i}"]`).value,
+                sourceUrl: item.querySelector(`[data-news-source="${i}"]`).value
             });
         });
         data.items = items;
@@ -775,10 +807,23 @@
             items.push({
                 date: item.querySelector(`[data-sched-date="${i}"]`).value,
                 city: item.querySelector(`[data-sched-city="${i}"]`).value,
-                event: item.querySelector(`[data-sched-event="${i}"]`).value
+                event: item.querySelector(`[data-sched-event="${i}"]`).value,
+                sourceUrl: item.querySelector(`[data-sched-source="${i}"]`).value
             });
         });
         data.items = items;
+        // 公告收集
+        const announcements = [];
+        document.querySelectorAll('#schedule-announcements .content-item').forEach(item => {
+            const i = item.dataset.announcementIndex;
+            announcements.push({
+                month: item.querySelector(`[data-announcement-month="${i}"]`).value,
+                text: item.querySelector(`[data-announcement-text="${i}"]`).value,
+                sourceUrl: item.querySelector(`[data-announcement-source="${i}"]`).value,
+                updatedAt: new Date().toISOString()
+            });
+        });
+        data.announcements = announcements.filter(a => a.text);
     }
 
     function collectModules() {
@@ -1332,6 +1377,16 @@
             data.items.splice(parseInt(btn.dataset.removeSched), 1);
             renderSchedule();
         });
+        const annContainer = $('#schedule-announcements');
+        if (annContainer) {
+            annContainer.addEventListener('click', e => {
+                const btn = e.target.closest('[data-remove-announcement]');
+                if (!btn) return;
+                const data = (config.plugins && config.plugins.data && config.plugins.data['actor-schedule']) || { announcements: [] };
+                (data.announcements || []).splice(parseInt(btn.dataset.removeAnnouncement), 1);
+                renderSchedule();
+            });
+        }
 
         // 新增自定义模块
         $('#btn-add-module').addEventListener('click', () => {

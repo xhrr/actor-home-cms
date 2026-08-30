@@ -53,9 +53,16 @@
     function parseTime(value) {
         const str = String(value || '').trim();
         if (!str) return 0;
+        // 完整日期：2024-05-01 / 2024/5/1 / 2024.5.1 / 2024年5月1日
         const m = str.match(/^(\d{4})\s*[-/.年]\s*(\d{1,2})\s*[-/.月]\s*(\d{1,2})\s*日?$/);
         if (m) {
             const t = new Date(+m[1], +m[2] - 1, +m[3]).getTime();
+            return isNaN(t) ? 0 : t;
+        }
+        // 年月：2024-05 / 2024.05 / 2024年5月
+        const ym = str.match(/^(\d{4})\s*[-/.年]\s*(\d{1,2})\s*月?$/);
+        if (ym) {
+            const t = new Date(+ym[1], +ym[2] - 1, 1).getTime();
             return isNaN(t) ? 0 : t;
         }
         const y = str.match(/^(\d{4})/);

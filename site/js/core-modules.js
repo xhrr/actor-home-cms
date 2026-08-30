@@ -222,7 +222,7 @@ window.CMS.registerModule('hero', function (mod) {
     window.CMS.registerModule('news', function (mod) {
         if (!mod || mod.visible === false) return '';
         const pluginData = (C.plugins && C.plugins.data && C.plugins.data['actor-news']) || {};
-        const allItems = pluginData.items || [];
+        const allItems = (pluginData.items || []).slice().sort((a, b) => U.parseTime(b.date) - U.parseTime(a.date)); // 按时间降序（最新在前）
         const limit = mod.limit || 3;
         const items = allItems.slice(0, limit);
         const heading = pluginData.heading || '最新动态';
@@ -240,6 +240,7 @@ window.CMS.registerModule('hero', function (mod) {
                 <div>
                     <h3 class="plugin-list__title">${esc(item.title || '')}</h3>
                     <p class="plugin-list__desc">${esc(item.summary || '')}</p>
+                    ${safeUrl(item.sourceUrl, 'link') ? `<p class="plugin-list__source"><a class="hover-underline" href="${safeUrl(item.sourceUrl, 'link')}" target="_blank" rel="noopener">原始链接 ↗</a></p>` : ''}
                 </div>
             </article>
         `).join('')}
@@ -279,22 +280,34 @@ window.CMS.registerModule('hero', function (mod) {
     window.CMS.registerModule('schedule', function (mod) {
         if (!mod || mod.visible === false) return '';
         const pluginData = (C.plugins && C.plugins.data && C.plugins.data['actor-schedule']) || {};
-        const allItems = pluginData.items || [];
+        const allItems = (pluginData.items || []).slice().sort((a, b) => U.parseTime(b.date) - U.parseTime(a.date)); // 按日期降序（最新在前）
         const limit = mod.limit || 3;
         const items = allItems.slice(0, limit);
-        if (!allItems.length) return '';
+        const announcements = pluginData.announcements || [];
+        const latestAnnouncement = announcements[announcements.length - 1];
+        if (!allItems.length && !latestAnnouncement) return '';
         return `
 <section class="section section--plugin schedule" id="schedule" data-module="schedule">
     <div class="section__head">
         <p class="section__label">SCHEDULE</p>
         <h2 class="section__title">${esc(pluginData.heading || '近期行程')}</h2>
     </div>
+    ${latestAnnouncement ? `
+    <div class="schedule-announcement">
+        <p class="schedule-announcement__text">${esc(latestAnnouncement.text || '')}</p>
+        ${safeUrl(latestAnnouncement.sourceUrl, 'link') ? `<p class="schedule-announcement__source"><a class="hover-underline" href="${safeUrl(latestAnnouncement.sourceUrl, 'link')}" target="_blank" rel="noopener">原始链接 ↗</a></p>` : ''}
+    </div>
+    ` : ''}
     <div class="plugin-list">
         ${items.map(item => `
             <article class="plugin-list__item schedule-item">
-                <span class="plugin-list__label">${esc(item.date || '')} · ${esc(item.city || '')}</span>
+                <span class="plugin-list__label">
+                    <em class="schedule-date">${esc(item.date || '')}</em>
+                    <em class="schedule-city">${esc(item.city || '')}</em>
+                </span>
                 <div>
                     <h3 class="plugin-list__title">${esc(item.event || '')}</h3>
+                    ${safeUrl(item.sourceUrl, 'link') ? `<p class="plugin-list__source"><a class="hover-underline" href="${safeUrl(item.sourceUrl, 'link')}" target="_blank" rel="noopener">原始链接 ↗</a></p>` : ''}
                 </div>
             </article>
         `).join('')}

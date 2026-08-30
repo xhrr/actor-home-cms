@@ -104,7 +104,7 @@
 
     function renderNews() {
         const data = (C.plugins && C.plugins.data && C.plugins.data['actor-news']) || {};
-        const items = data.items || [];
+        const items = (data.items || []).slice().sort((a, b) => U.parseTime(b.date) - U.parseTime(a.date)); // 按时间降序（最新在前）
         app.innerHTML = head('NEWS', data.heading || '最新动态') + `
             <div class="plugin-list">
                 ${items.map(item => `
@@ -113,6 +113,7 @@
                         <div>
                             <h3 class="plugin-list__title">${esc(item.title || '')}</h3>
                             <p class="plugin-list__desc">${esc(item.summary || '')}</p>
+                            ${safeUrl(item.sourceUrl, 'link') ? `<p class="plugin-list__source"><a class="hover-underline" href="${safeUrl(item.sourceUrl, 'link')}" target="_blank" rel="noopener">原始链接 ↗</a></p>` : ''}
                         </div>
                     </article>
                 `).join('') || '<p class="plugin-list__desc">暂无动态</p>'}
@@ -140,14 +141,27 @@
 
     function renderSchedule() {
         const data = (C.plugins && C.plugins.data && C.plugins.data['actor-schedule']) || {};
-        const items = data.items || [];
+        const items = (data.items || []).slice().sort((a, b) => U.parseTime(b.date) - U.parseTime(a.date)); // 按日期降序（最新在前）
+        const announcements = data.announcements || [];
         app.innerHTML = head('SCHEDULE', data.heading || '近期行程') + `
+            ${announcements.length ? `
+                <div class="schedule-announcement">
+                    ${announcements.map(a => `
+                        <p class="schedule-announcement__text">${esc(a.text || '')}</p>
+                        ${safeUrl(a.sourceUrl, 'link') ? `<p class="schedule-announcement__source"><a class="hover-underline" href="${safeUrl(a.sourceUrl, 'link')}" target="_blank" rel="noopener">原始链接 ↗</a></p>` : ''}
+                    `).join('')}
+                </div>
+            ` : ''}
             <div class="plugin-list">
                 ${items.map(item => `
                     <article class="plugin-list__item schedule-item">
-                        <span class="plugin-list__label">${esc(item.date || '')} · ${esc(item.city || '')}</span>
+                        <span class="plugin-list__label">
+                            <em class="schedule-date">${esc(item.date || '')}</em>
+                            <em class="schedule-city">${esc(item.city || '')}</em>
+                        </span>
                         <div>
                             <h3 class="plugin-list__title">${esc(item.event || '')}</h3>
+                            ${safeUrl(item.sourceUrl, 'link') ? `<p class="plugin-list__source"><a class="hover-underline" href="${safeUrl(item.sourceUrl, 'link')}" target="_blank" rel="noopener">原始链接 ↗</a></p>` : ''}
                         </div>
                     </article>
                 `).join('') || '<p class="plugin-list__desc">暂无行程</p>'}
