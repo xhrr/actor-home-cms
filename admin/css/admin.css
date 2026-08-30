@@ -109,6 +109,24 @@ a { text-decoration: none; color: inherit; }
     border-color: var(--color-accent);
 }
 
+/* ========== Admin Footer ========== */
+.admin-footer {
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--color-border);
+    text-align: center;
+    font-size: 0.78rem;
+    color: var(--color-text-light);
+}
+.admin-footer a {
+    color: var(--color-accent);
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.2s;
+}
+.admin-footer a:hover {
+    border-bottom-color: var(--color-accent);
+}
+
 /* Mobile toggle */
 .mobile-toggle {
     display: none;
