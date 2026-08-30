@@ -279,7 +279,8 @@ a {
     content: '';
     position: absolute;
     inset: 0;
-    background: linear-gradient(to top, rgba(249, 248, 246, 0.92) 0%, rgba(249, 248, 246, 0.2) 40%, rgba(249, 248, 246, 0.1) 100%);
+    /* 底部米色淡入：深色图片上也能保证黑字可读 */
+    background: linear-gradient(to top, rgba(249, 248, 246, 0.95) 0%, rgba(249, 248, 246, 0.45) 28%, rgba(249, 248, 246, 0.1) 70%);
 }
 
 .hero__content {
@@ -297,6 +298,7 @@ a {
     letter-spacing: 0.3em;
     text-transform: uppercase;
     color: var(--fg-40);
+    text-shadow: 0 1px 2px rgba(249, 248, 246, 0.92), 0 0 14px rgba(249, 248, 246, 0.6);
 }
 
 .hero__title {
@@ -307,6 +309,7 @@ a {
     letter-spacing: -0.04em;
     line-height: 0.9;
     color: var(--fg);
+    text-shadow: 0 1px 2px rgba(249, 248, 246, 0.92), 0 0 16px rgba(249, 248, 246, 0.65);
 }
 
 .hero__subtitle {
@@ -316,6 +319,7 @@ a {
     font-style: italic;
     color: var(--fg-60);
     line-height: 1.75;
+    text-shadow: 0 1px 2px rgba(249, 248, 246, 0.92), 0 0 12px rgba(249, 248, 246, 0.6);
 }
 
 .hero__scroll {
@@ -326,6 +330,7 @@ a {
     letter-spacing: 0.2em;
     text-transform: uppercase;
     color: var(--fg-40);
+    text-shadow: 0 1px 2px rgba(249, 248, 246, 0.92), 0 0 12px rgba(249, 248, 246, 0.6);
 }
 
 /* ===================================================================
@@ -1038,6 +1043,16 @@ a {
     display: flex;
 }
 
+/* 底部米色淡入底：文字始终垫在浅色上，深色图下黑字可读；不挡列切换动画 */
+.hero-split__columns::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: linear-gradient(to top, rgba(249, 248, 246, 0.9) 0%, rgba(249, 248, 246, 0.45) 20%, rgba(249, 248, 246, 0) 45%);
+}
+
 .split-col {
     position: relative;
     flex: 1 1 0;
@@ -1099,6 +1114,7 @@ a {
     letter-spacing: 0.3em;
     text-transform: uppercase;
     color: var(--fg-40);
+    text-shadow: 0 1px 2px rgba(249, 248, 246, 0.92), 0 0 14px rgba(249, 248, 246, 0.6);
 }
 
 .hero-split__title {
@@ -1109,6 +1125,7 @@ a {
     letter-spacing: -0.04em;
     line-height: 0.9;
     color: var(--fg);
+    text-shadow: 0 1px 2px rgba(249, 248, 246, 0.92), 0 0 16px rgba(249, 248, 246, 0.65);
 }
 
 .hero-split__subtitle {
@@ -1118,6 +1135,7 @@ a {
     font-style: italic;
     color: var(--fg-60);
     line-height: 1.75;
+    text-shadow: 0 1px 2px rgba(249, 248, 246, 0.92), 0 0 12px rgba(249, 248, 246, 0.6);
 }
 
 .hero-split__scroll {
@@ -1128,6 +1146,7 @@ a {
     letter-spacing: 0.2em;
     text-transform: uppercase;
     color: var(--fg-40);
+    text-shadow: 0 1px 2px rgba(249, 248, 246, 0.92), 0 0 12px rgba(249, 248, 246, 0.6);
 }
 
 @media (max-width: 640px) {
