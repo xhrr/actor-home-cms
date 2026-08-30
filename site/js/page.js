@@ -65,18 +65,15 @@
                 .sort((a, b) => U.parseTime(b.item.year || b.item.releaseDate) - U.parseTime(a.item.year || a.item.releaseDate));
             if (!items.length) return '';
             const realCi = selectedCat === null ? ci : selectedCat;
-            return `
-                <div class="works-category">
-                    <h3 class="works-category__title">${esc(cat.name || '代表作品')}</h3>
-                    <div class="works__list">
-                        ${items.map(({ item, ii }, idx) => {
-                            const poster = safeUrl(item.poster || item.image, 'image');
-                            const source = safeUrl(item.sourceUrl, 'link');
-                            return `
+
+            const renderItem = ({ item, ii }, idx) => {
+                const poster = safeUrl(item.poster || item.image, 'image');
+                const source = safeUrl(item.sourceUrl, 'link');
+                return `
                             <article class="work-item">
                                 <div class="work-item__num">${String(idx + 1).padStart(2, '0')}</div>
                                 <a class="work-item__media" href="/gallery.html?cat=${realCi}&work=${ii}">
-                                    <img src="${poster}" alt="${esc(item.title)}" loading="lazy" onerror="this.parentElement.classList.add('is-empty')">
+                                    <img src="${poster}" alt="${esc(item.title)}" loading="lazy" onerror="this.parentElement.classList.add('is-empty')" onload="this.closest('.work-item__media').classList.toggle('is-portrait', this.naturalHeight > this.naturalWidth)">
                                 </a>
                                 <div class="work-item__info">
                                     <h3 class="work-item__title">${esc(item.title)}</h3>
@@ -87,7 +84,13 @@
                                 </div>
                             </article>
                         `;
-                        }).join('')}
+            };
+
+            return `
+                <div class="works-category">
+                    <h3 class="works-category__title">${esc(cat.name || '代表作品')}</h3>
+                    <div class="works__list works__list--feature">
+                        ${items.map(renderItem).join('')}
                     </div>
                 </div>
             `;
