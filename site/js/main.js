@@ -109,7 +109,8 @@
     }
 
     function initReveal() {
-        const targets = document.querySelectorAll('.section__head, .work-item, .gallery__item, .news-item, .award-item, .schedule-item');
+        // 注意：主题 CSS 可能把 album-card 也设为初始隐藏，需一并监听揭示
+        const targets = document.querySelectorAll('.section__head, .work-item, .gallery__item, .news-item, .award-item, .schedule-item, .album-card');
         if (typeof window.IntersectionObserver === 'undefined') {
             targets.forEach(el => el.classList.add('is-visible'));
             return;

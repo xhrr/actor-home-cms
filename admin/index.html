@@ -279,7 +279,9 @@
                 <label class="btn btn--ghost btn--sm" for="theme-upload">上传主题 ZIP</label>
                 <input type="file" id="theme-upload" accept=".zip" style="display:none">
             </div>
-            <p class="form-help">自定义主题需包含 <code>index.html</code> 或 <code>css/</code> 目录，激活后运行时优先加载主题文件，导出时覆盖 dist。默认使用内置 Editorial 主题。</p>
+            <p class="form-help">主题按路径覆盖整站（首页 + 子页面）：
+<strong>轻量换肤</strong>——ZIP 里提供 <code>css/editorial.css</code> 同名覆盖默认样式，全站（含子页面）立即生效；
+<strong>整站打包</strong>——ZIP 里放入 index/about/gallery/works/news/awards/schedule.html 等完整页面，激活后整站使用主题结构与样式。</p>
             <div id="theme-list" class="theme-grid"></div>
         </div>
 

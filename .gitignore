@@ -10,3 +10,4 @@ data/
 .deploy-stage/
 # 会话交接文档（机器相关路径）
 START_HERE.md
+themes/*/
