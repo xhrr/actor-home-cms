@@ -28,17 +28,55 @@
         window.CMS.initNavShell();
     }
 
-    /* ---------- 灯箱 ---------- */
+    /* ---------- 灯箱（支持左右切换） ---------- */
+
+    // 当前视图的图片列表与索引（渲染时维护）
+    let curImages = [];
+    let curIndex = -1;
+    let touchStartX = null;
 
     function bindLightbox() {
         const lightbox = document.getElementById('lightbox');
         const lightboxImg = document.getElementById('lightbox-img');
+        const counterEl = document.getElementById('lightbox-counter');
+        const prevBtn = document.getElementById('lightbox-prev');
+        const nextBtn = document.getElementById('lightbox-next');
         if (!lightbox || !lightboxImg) return;
 
+        function syncNav() {
+            const multi = curImages.length > 1 && curIndex >= 0;
+            if (prevBtn) prevBtn.style.display = multi ? '' : 'none';
+            if (nextBtn) nextBtn.style.display = multi ? '' : 'none';
+            if (counterEl) counterEl.textContent = multi ? (curIndex + 1) + ' / ' + curImages.length : '';
+            counterEl.style.display = multi ? '' : 'none';
+        }
+
         function open(src) {
+            curIndex = curImages.indexOf(src);
             lightboxImg.src = src;
             lightbox.style.display = 'flex';
             document.body.style.overflow = 'hidden';
+            syncNav();
+            prefetchNeighbors();
+        }
+
+        function show(i) {
+            if (i < 0 || i >= curImages.length) return;
+            curIndex = i;
+            lightboxImg.src = curImages[i];
+            syncNav();
+            prefetchNeighbors();
+        }
+
+        function prev() { show(curIndex - 1); }
+        function next() { show(curIndex + 1); }
+
+        function prefetchNeighbors() {
+            [curIndex - 1, curIndex + 1].forEach(i => {
+                if (i < 0 || i >= curImages.length) return;
+                const im = new Image();
+                im.src = curImages[i];
+            });
         }
 
         function close() {
@@ -53,12 +91,31 @@
 
         const closeBtn = document.getElementById('lightbox-close');
         if (closeBtn) closeBtn.addEventListener('click', close);
+
+        if (prevBtn) prevBtn.addEventListener('click', e => { e.stopPropagation(); prev(); });
+        if (nextBtn) nextBtn.addEventListener('click', e => { e.stopPropagation(); next(); });
+
         lightbox.addEventListener('click', e => {
             if (e.target === lightbox || e.target === lightboxImg) close();
         });
+
         document.addEventListener('keydown', e => {
+            if (lightbox.style.display === 'none') return;
             if (e.key === 'Escape') close();
+            if (e.key === 'ArrowLeft') prev();
+            if (e.key === 'ArrowRight') next();
         });
+
+        // 触摸滑动切换
+        lightbox.addEventListener('touchstart', e => {
+            if (e.touches.length === 1) touchStartX = e.touches[0].clientX;
+        }, { passive: true });
+        lightbox.addEventListener('touchend', e => {
+            if (touchStartX === null) return;
+            const dx = e.changedTouches[0].clientX - touchStartX;
+            touchStartX = null;
+            if (Math.abs(dx) > 40) (dx < 0 ? next : prev)();
+        }, { passive: true });
     }
 
     /* ---------- 写真集列表 ---------- */
@@ -133,6 +190,7 @@
                 `).join('')}
             </div>
         `;
+        curImages = images.filter(Boolean);
     }
 
     /* ---------- 作品图集兼容 ---------- */
@@ -187,6 +245,7 @@
                 `).join('')}
             </div>
         `;
+        curImages = images.filter(Boolean);
     }
 
     /* ---------- 入口 ---------- */

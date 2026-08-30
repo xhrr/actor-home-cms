@@ -22,9 +22,15 @@ function parseIssueBody(body) {
         const line = raw.trim();
         if (!line) continue;
 
-        const listItem = line.match(/^[-*]\s+(.+)$/);
+        // 兼容 "- item" 与 "-item"（连字符后无空格）两种列表写法
+        const listItem = line.match(/^[-*]\s*(.+)$/);
         if (listItem && listKey) {
             data[listKey].push(listItem[1].trim());
+            continue;
+        }
+        // 兼容裸链接多行：列表符后直接放一行一个 URL（无 - 前缀），须先于 kv 判断，避免 "https://..." 被误当键值对
+        if (listKey && /^https?:\/\/\S+$/.test(line)) {
+            data[listKey].push(line);
             continue;
         }
 

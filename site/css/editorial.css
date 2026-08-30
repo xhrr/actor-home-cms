@@ -1480,6 +1480,61 @@ a {
     box-shadow: none;
 }
 
+.lightbox__nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3.25rem;
+    height: 3.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: 1px solid rgba(249, 248, 246, 0.35);
+    border-radius: 999px;
+    color: #F9F8F6;
+    font-size: 1.15rem;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0.85;
+    transition: opacity 0.2s, background-color 0.2s;
+    z-index: 2;
+}
+
+.lightbox__nav:hover {
+    opacity: 1;
+    background: rgba(249, 248, 246, 0.12);
+}
+
+.lightbox__nav--prev {
+    left: 1.5rem;
+}
+
+.lightbox__nav--next {
+    right: 1.5rem;
+}
+
+.lightbox__counter {
+    position: absolute;
+    bottom: 1.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(249, 248, 246, 0.7);
+    font-size: 0.8rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+}
+
+@media (max-width: 640px) {
+    .lightbox__nav {
+        width: 2.75rem;
+        height: 2.75rem;
+    }
+
+    .lightbox__nav--prev { left: 0.75rem; }
+    .lightbox__nav--next { right: 0.75rem; }
+}
+
 @media (max-width: 900px) {
     .album-masonry {
         column-count: 2;
