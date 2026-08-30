@@ -1,6 +1,6 @@
 # Actor Home CMS
 
-一个**演员主页 CMS**，参考 `/vol1/1000/dsh/ph` 的摄影师作品集系统，升级为**完全插件化**架构。
+一个**演员主页 CMS**，摄影师作品集升级为**完全插件化**架构。
 默认主页使用 **Editorial 编辑杂志风**：暖米色、柔和黑、衬线标题、无阴影、无圆角、大量留白。
 
 ## 功能
@@ -48,6 +48,52 @@ npm start
 | http://localhost:3000/news.html | 全部动态页 |
 | http://localhost:3000/awards.html | 全部荣誉页 |
 | http://localhost:3000/schedule.html | 全部行程页 |
+
+### 导出静态网页并部署到 Cloudflare Pages（完整流程）
+
+**第一步：导出静态站点**
+
+管理后台 →「导出部署」→ 点击「导出到 dist/」（或 `POST /api/export`）。`dist/` 即完整静态站：
+
+```text
+dist/
+├── index.html / works.html / gallery.html ...   # 页面
+├── css/editorial.css                            # 样式
+├── js/                                          # 前端脚本（含站点配置）
+├── uploads/                                     # 本地图片（如有）
+├── _headers                                     # 安全响应头（自动生效）
+└── wrangler.toml                                # Cloudflare 项目配置
+```
+
+**第二步：把 dist 推送到 GitHub 仓库**
+
+推荐用后台自带插件（全自动）：
+
+1. 打开一个专门存放静态站的仓库（如 `https://github.com/你的账号/actor-home-pages`，新建并保持为空即可）
+2. 后台「插件管理」→ **GitHub 部署** 插件 → 配置仓库地址 / Token / 分支（main）→ 点「推送部署」
+3. 仓库根目录即为静态站内容（`index.html` 在根），也可调用 `POST /api/plugins/github-deploy/push` 触发
+
+> 提示：配合「GitHub Issues 内容更新」插件，Issue 审核通过后会自动导出并推送，无需手动操作。
+
+**第三步：Cloudflare Pages 连接 GitHub（自动部署）**
+
+1. 打开 [Cloudflare Dashboard](https://dash.cloudflare.com) → **Workers 和 Pages** → **创建** → **Pages** → **连接到 Git**
+2. 授权 Cloudflare 访问你的 GitHub（可只授权那一个静态站仓库）
+3. 选择刚推入 dist 的仓库：
+   - **框架预设**：无（None）
+   - **构建命令**：留空
+   - **构建输出目录**：`/`（仓库根目录就是网页根）
+4. 点击「保存并部署」，自动生成地址 `https://<project-name>.pages.dev`
+
+**第四步：内容更新全自动闭环**
+
+- 以后每次后台更新内容 → 导出 → 推送 GitHub → **Cloudflare 监听仓库变更自动重新部署**，全程无需登录 Cloudflare 控制台
+- 手动更新：重复「导出 + 点一下 GitHub 部署插件的推送」
+- 全自动更新：GitHub Issues 插件（审核通过的 Issue 自动更新内容、导出并推送）
+
+**绑定自定义域名（可选）**
+
+Cloudflare Pages 项目 → **自定义域** → 添加域名（如 `www.example.com`），按提示设置 CNAME 指向 `<project-name>.pages.dev`，等待生效即可 HTTPS 访问；`dist/_headers` 安全头随部署自动生效。
 
 ## 项目结构
 
