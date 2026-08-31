@@ -10,6 +10,7 @@
     let pluginList = [];
     let previewEnabled = false;
     let autosaveTimer = null;
+    let dirtySections = new Set();
     let selectedWorkCategory = 0;
 
     // 页脚固定版权链接：后台只读不可删，配置保存时恒放末位
@@ -571,20 +572,99 @@
        收集
        =================================================================== */
 
-    function collectAll() {
-        collectActor();
-        collectHero();
-        collectWorks();
-        collectGallery();
-        collectNews();
-        collectAwards();
-        collectSchedule();
-        collectAbout();
-        collectSocial();
-        collectFooter();
-        const heroModeChanged = applyHeroMode();
-        if (heroModeChanged) renderModules();
-        collectPluginData();
+    /* ===================================================================
+       分区保存：每个分区独立收集、独立提交，互不影响
+       sections —— PATCH /api/config 的顶层字段（对象深合并）
+       modules  —— 随分区一起提交完整模块数组（整体替换）
+       plugin   —— 该分区内容存到插件 plugins.data[name]（独立端点）
+       =================================================================== */
+
+    const SECTION_SAVERS = {
+        actor:    { sections: ['actor'], collect: collectActor },
+        hero:     { sections: ['hero'], modules: true, collect: function () { collectHero(); if (applyHeroMode()) renderModules(); } },
+        works:    { sections: ['works'], modules: true, collect: collectWorks },
+        gallery:  { sections: ['gallery'], modules: true, collect: collectGallery },
+        news:     { plugin: 'actor-news', modules: true, collect: collectNews },
+        awards:   { plugin: 'actor-awards', modules: true, collect: collectAwards },
+        schedule: { plugin: 'actor-schedule', modules: true, collect: collectSchedule },
+        about:    { sections: ['about'], modules: true, collect: collectAbout },
+        social:   { sections: ['social'], collect: collectSocial },
+        footer:   { sections: ['footer'], modules: true, collect: collectFooter },
+        modules:  { modules: true, collect: collectModules }
+    };
+
+    // 只保存指定分区（自动保存用）；成功后刷新内存为服务端最新
+    async function saveSection(name, silent = false) {
+        const def = SECTION_SAVERS[name];
+        if (!def) return { ok: false, error: '未知分区: ' + name };
+        if (def.collect) def.collect();
+
+        const sections = {};
+        (def.sections || []).forEach(k => {
+            if (config[k] !== undefined) sections[k] = config[k];
+        });
+        const hasPatch = Object.keys(sections).length > 0 || (def.modules && Array.isArray(config.modules));
+
+        // 内容型插件数据（动态/荣誉/行程）走插件独立端点
+        if (def.plugin) {
+            const data = (config.plugins && config.plugins.data && config.plugins.data[def.plugin]) || {};
+            const pres = await fetch('/api/plugins/' + def.plugin + '/data', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data || {})
+            });
+            if (!pres.ok) return { ok: false, error: def.plugin + ' 数据保存失败（' + pres.status + '）' };
+        }
+
+        if (!hasPatch) return { ok: true, nothing: true };
+
+        const body = { sections };
+        if (def.modules) body.modules = config.modules;
+        const res = await fetch('/api/config', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+
+        if (res.ok) {
+            const json = await res.json().catch(() => null);
+            if (json && json.config) config = json.config; // 内存与服务端对齐，杜绝旧快照覆盖
+            return { ok: true };
+        }
+        // 兼容旧服务端（尚无 PATCH 端点）：回退整包保存
+        if (res.status === 404) {
+            const legacy = await fetch('/api/config', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(config)
+            });
+            return legacy.ok ? { ok: true, degraded: true } : { ok: false, error: '保存失败（' + legacy.status + '）' };
+        }
+        const data = await res.json().catch(() => ({}));
+        return { ok: false, error: data.error || ('保存失败（' + res.status + '）') };
+    }
+
+    // 「保存修改」：全部分区依次独立保存，任意分区失败不影响其他分区
+    async function saveAllSections(silent = false) {
+        const failed = [];
+        for (const name of Object.keys(SECTION_SAVERS)) {
+            const r = await saveSection(name, true);
+            if (!r.ok) failed.push(name + ': ' + (r.error || '失败'));
+        }
+        dirtySections.clear();
+        const status = $('#saveStatus');
+        if (failed.length) {
+            if (!silent) showToast(failed.join('；'), true);
+        } else {
+            if (!silent) showToast('全部保存成功');
+            if (status) {
+                status.textContent = '已保存';
+                status.classList.add('show');
+                setTimeout(() => status.classList.remove('show'), 2000);
+            }
+        }
+        updateSidebarNav();
+        if (previewEnabled) refreshPreview();
     }
 
     function collectActor() {
@@ -934,56 +1014,9 @@
         return changed;
     }
 
-    function collectPluginData() {
-        if (!config.plugins) config.plugins = { enabled: [], data: {} };
-        if (!config.plugins.data) config.plugins.data = {};
-        const enabled = config.plugins.enabled || [];
-        enabled.forEach(name => {
-            if (DEDICATED_PLUGIN_NAMES.includes(name)) return;
-            const panel = panels[name];
-            if (panel && typeof panel.collect === 'function') {
-                const container = document.querySelector(`[data-plugin-panel="${name}"]`);
-                if (container) {
-                    config.plugins.data[name] = panel.collect();
-                }
-            }
-        });
-    }
-
     /* ===================================================================
        保存与操作
        =================================================================== */
-
-    async function saveConfig(silent = false) {
-        collectAll();
-        const btn = $('#btnSave');
-        if (btn) btn.disabled = true;
-        try {
-            const res = await fetch('/api/config', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(config)
-            });
-            if (res.ok) {
-                if (!silent) showToast('保存成功');
-                const status = $('#saveStatus');
-                if (status) {
-                    status.textContent = '已保存';
-                    status.classList.add('show');
-                    setTimeout(() => status.classList.remove('show'), 2000);
-                }
-                updateSidebarNav();
-                if (previewEnabled) refreshPreview();
-            } else {
-                const data = await res.json();
-                if (!silent) showToast(data.error || '保存失败', true);
-            }
-        } catch (e) {
-            if (!silent) showToast('保存失败: ' + e.message, true);
-        } finally {
-            if (btn) btn.disabled = false;
-        }
-    }
 
     function showToast(msg, isError = false) {
         const el = $('#saveStatus');
@@ -1196,20 +1229,42 @@
         iframe.src = '/?t=' + Date.now();
     }
 
+    function markDirty(section) {
+        dirtySections.add(section);
+        scheduleAutoSave();
+    }
+
     function scheduleAutoSave() {
         if (!previewEnabled) return;
         clearTimeout(autosaveTimer);
-        autosaveTimer = setTimeout(() => saveConfig(true), 800);
+        autosaveTimer = setTimeout(saveDirtySections, 1200);
+    }
+
+    // 只自动保存发生过编辑的分区
+    async function saveDirtySections() {
+        if (!dirtySections.size) return;
+        const names = Array.from(dirtySections);
+        dirtySections.clear();
+        for (const n of names) {
+            const r = await saveSection(n, true);
+            if (!r.ok) dirtySections.add(n); // 失败保留脏标记，下轮重试
+        }
+        if (previewEnabled) refreshPreview();
     }
 
     function bindAutoSave() {
-        document.querySelectorAll('.section-card input, .section-card textarea, .section-card select').forEach(el => {
-            const tag = el.tagName.toLowerCase();
-            // 文件选择框不自动保存
-            if (tag === 'input' && el.type === 'file') return;
-            el.addEventListener('input', scheduleAutoSave);
-            el.addEventListener('change', scheduleAutoSave);
-        });
+        // 委托监听：模块列表等动态重渲染内容也生效
+        document.addEventListener('input', onAutoSaveInput, true);
+        document.addEventListener('change', onAutoSaveInput, true);
+    }
+
+    function onAutoSaveInput(e) {
+        const el = e.target;
+        if (el.type === 'file') return;
+        const card = el.closest('.section-card');
+        if (!card || !card.id) return;
+        const section = card.id.replace('section-', '');
+        if (SECTION_SAVERS[section]) markDirty(section);
     }
 
     async function loadReadmeEditor() {
@@ -1281,7 +1336,7 @@
             if (panel) panel.style.display = 'none';
         });
 
-        $('#btnSave').addEventListener('click', saveConfig);
+        $('#btnSave').addEventListener('click', () => saveAllSections(false));
         $('#btn-export').addEventListener('click', exportSite);
 
         const btnSaveReadme = $('#btn-save-readme');

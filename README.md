@@ -253,7 +253,8 @@ if (window.AdminCMS) {
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | `/api/config` | 获取配置 |
-| PUT | `/api/config` | 保存配置 |
+| PUT | `/api/config` | 保存配置（整包写入，仅建议导入用） |
+| PATCH | `/api/config` | 分片保存：`{sections:{...}, modules:[...]}` 深合并，分区/插件互不覆盖（后台默认使用） |
 | POST | `/api/upload` | 上传图片（本地媒体库） |
 | GET | `/api/images` | 图片列表（本地 + 远程合并） |
 | DELETE | `/api/images/:filename` | 删除本地图片 |
