@@ -116,6 +116,8 @@
         const footerEnabledInput = $('#footer-enabled');
         if (footerEnabledInput) footerEnabledInput.checked = findModule('footer') ? findModule('footer').visible !== false : true;
         $('#footer-copyright').value = footer.copyright || '';
+        const disclaimerInput = $('#footer-disclaimer');
+        if (disclaimerInput) disclaimerInput.value = footer.disclaimer || '';
 
         const links = Array.isArray(footer.links) ? footer.links : [];
         const container = $('#footer-links-list');
@@ -787,6 +789,8 @@
     function collectFooter() {
         config.footer = config.footer || {};
         config.footer.copyright = $('#footer-copyright').value;
+        const disclaimerInput = $('#footer-disclaimer');
+        if (disclaimerInput) config.footer.disclaimer = disclaimerInput.value;
         const footerEnabledInput = $('#footer-enabled');
         if (footerEnabledInput) setModuleVisible('footer', footerEnabledInput.checked);
 

@@ -321,6 +321,7 @@ window.CMS.registerModule('hero', function (mod) {
         const footer = C.footer || {};
         const links = social.links || [];
         const copyright = footer.copyright || '';
+        const disclaimer = String(footer.disclaimer || '').trim();
         // 版权链接：可配置多条；无效条目（文字与链接都为空）不渲染
         const copyLinks = (Array.isArray(footer.links) ? footer.links : [])
             .filter(l => l && (String(l.text || '').trim() || String(l.url || '').trim()));
@@ -341,6 +342,11 @@ window.CMS.registerModule('hero', function (mod) {
             ${links.map(l => `<a href="${safeUrl(l.url, 'link') || '#'}" target="_blank" rel="noopener noreferrer">${esc(l.name)}</a>`).join('')}
         </div>
         <p class="footer__copy">${parts.join('<span class="footer__copy-sep"> · </span>')}</p>
+        ${disclaimer ? `
+        <p class="footer__disclaimer" id="footerDisclaimer">
+            <span class="footer__disclaimer-trigger" tabindex="0" role="button" aria-expanded="false">免责声明</span>
+            <span class="footer__disclaimer-tip" role="tooltip">${esc(disclaimer)}</span>
+        </p>` : ''}
     </div>
 </footer>`;
     }, { nav: { href: '#footer', text: '联系' } });

@@ -108,6 +108,25 @@
         });
     }
 
+    /** 页脚免责声明：触屏点击切换，点击外部关闭（悬停/聚焦由 CSS 处理） */
+    function initDisclaimer() {
+        const d = document.getElementById('footerDisclaimer');
+        if (!d) return;
+        const trigger = d.querySelector('.footer__disclaimer-trigger');
+        if (!trigger) return;
+        const setOpen = open => {
+            d.classList.toggle('is-open', open);
+            trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+        };
+        trigger.addEventListener('click', e => {
+            e.preventDefault();
+            setOpen(!d.classList.contains('is-open'));
+        });
+        document.addEventListener('click', e => {
+            if (d.classList.contains('is-open') && !d.contains(e.target)) setOpen(false);
+        });
+    }
+
     function initReveal() {
         // 注意：主题 CSS 可能把 album-card 也设为初始隐藏，需一并监听揭示
         const targets = document.querySelectorAll('.section__head, .work-item, .gallery__item, .news-item, .award-item, .schedule-item, .album-card');
@@ -144,6 +163,7 @@
         rebuildNav(modules);
         bindNav();
         initHeroSplit();
+        initDisclaimer();
         initReveal();
         window.CMS.runHook('afterRender', { modules });
     }
