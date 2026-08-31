@@ -590,11 +590,42 @@
         about:    { sections: ['about'], modules: true, collect: collectAbout },
         social:   { sections: ['social'], collect: collectSocial },
         footer:   { sections: ['footer'], modules: true, collect: collectFooter },
-        modules:  { modules: true, collect: collectModules }
+        modules:  { modules: true, collect: collectModules },
+        // 插件面板：每个面板数据走各自独立端点（plugins.data[name]），互不影响
+        plugins:  { plugins: true }
     };
+
+    // 保存所有非专属插件面板的配置（幂等；无面板/未启用自动跳过）
+    async function savePluginPanels() {
+        const enabled = (config.plugins && config.plugins.enabled) || [];
+        const failed = [];
+        for (const name of enabled) {
+            if (DEDICATED_PLUGIN_NAMES.includes(name)) continue;
+            const panel = panels[name];
+            if (!panel || typeof panel.collect !== 'function') continue;
+            if (!document.querySelector(`[data-plugin-panel="${name}"]`)) continue;
+            try {
+                const res = await fetch('/api/plugins/' + encodeURIComponent(name) + '/data', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(panel.collect() || {})
+                });
+                if (!res.ok) failed.push(name);
+            } catch (e) {
+                failed.push(name);
+            }
+        }
+        if (!failed.length) {
+            // 插件数据不在 PATCH 响应里，单独拉一次最新配置对齐内存
+            const fresh = await fetch('/api/config').then(r => r.json()).catch(() => null);
+            if (fresh && fresh.plugins) config = fresh;
+        }
+        return failed.length ? { ok: false, error: '插件配置保存失败: ' + failed.join(', ') } : { ok: true };
+    }
 
     // 只保存指定分区（自动保存用）；成功后刷新内存为服务端最新
     async function saveSection(name, silent = false) {
+        if (name === 'plugins') return savePluginPanels();
         const def = SECTION_SAVERS[name];
         if (!def) return { ok: false, error: '未知分区: ' + name };
         if (def.collect) def.collect();
