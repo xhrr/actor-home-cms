@@ -50,7 +50,7 @@
                 </div>
                 <div class="form-group">
                     <label class="toggle-label">
-                        <input type="checkbox" id="ww-autosync" ${data.autoSync !== false ? 'checked' : ''}> 月底自动同步（25 号后每 6 小时尝试一次）
+                        <input type="checkbox" id="ww-autosync" ${data.autoSync !== false ? 'checked' : ''}> 窗口自动同步（每月最后 3 天 + 次月前 3 天，每 3 小时尝试一次）
                     </label>
                 </div>
                 <div class="form-group">

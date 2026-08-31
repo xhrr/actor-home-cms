@@ -176,12 +176,20 @@
 
     function renderWorkItem(item, ci, ii) {
         const key = ci + '-' + ii;
+        const catName = (config.works.categories[ci] && config.works.categories[ci].name) || '';
+        const searchText = [item.title, item.role, item.director, item.year, item.type, item.synopsis, catName].join(' ').toLowerCase();
+        const meta = [catName, item.year, (item.type || '') + (item.role ? ' · 饰 ' + item.role : '')].filter(Boolean).join(' · ');
         return `
-            <div class="work-item admin-work-item" data-work-key="${key}">
-                <div class="work-item__head">
+            <div class="work-item admin-work-item is-collapsed" data-work-key="${key}" data-search="${window.AdminCMS.esc(searchText)}">
+                <div class="work-item__head" data-toggle-item>
                     <span class="work-item__name">${window.AdminCMS.esc(item.title || ('作品 ' + (ii + 1)))}</span>
-                    <button class="btn--danger" data-remove-work="${key}" title="删除作品">×</button>
+                    <span class="item-meta">${window.AdminCMS.esc(meta)}</span>
+                    <span class="item-tools">
+                        <button class="btn--danger" data-remove-work="${key}" title="删除作品">×</button>
+                        <span class="collapse-chevron">▾</span>
+                    </span>
                 </div>
+                <div class="work-item__body">
                 <div class="form-row">
                     <div class="form-group">
                         <label>标题</label>
@@ -224,6 +232,7 @@
                     <label>剧照 / 图集 URL（每行一个）</label>
                     <textarea data-w-images="${key}" rows="3" placeholder="https://example.com/still1.jpg&#10;https://example.com/still2.jpg">${(item.images || []).join('\n')}</textarea>
                 </div>
+                </div>
             </div>
         `;
     }
@@ -256,12 +265,20 @@
         const galleryEnabledInput = $('#gallery-enabled');
         if (galleryEnabledInput) galleryEnabledInput.checked = findModule('images') ? findModule('images').visible !== false : true;
         $('#gallery-heading').value = config.gallery.heading || '写真';
-        $('#gallery-albums-list').innerHTML = config.gallery.albums.map((album, ai) => `
-            <div class="album-item admin-album-item" data-album-index="${ai}">
-                <div class="album-item__head">
+        $('#gallery-albums-list').innerHTML = config.gallery.albums.map((album, ai) => {
+            const src = [album.title, album.author, album.sourceUrl, (album.images || []).length + '张'].join(' ').toLowerCase();
+            const meta = [album.author, (album.images || []).length + ' 张'].filter(Boolean).join(' · ');
+            return `
+            <div class="album-item admin-album-item is-collapsed" data-album-index="${ai}" data-search="${window.AdminCMS.esc(src)}">
+                <div class="album-item__head" data-toggle-item>
                     <span class="album-item__name">${window.AdminCMS.esc(album.title || ('写真集 ' + (ai + 1)))}</span>
-                    <button class="btn--danger" data-remove-album="${ai}" title="删除写真集">×</button>
+                    <span class="item-meta">${window.AdminCMS.esc(meta)}</span>
+                    <span class="item-tools">
+                        <button class="btn--danger" data-remove-album="${ai}" title="删除写真集">×</button>
+                        <span class="collapse-chevron">▾</span>
+                    </span>
                 </div>
+                <div class="album-item__body">
                 <div class="form-row">
                     <div class="form-group">
                         <label>标题</label>
@@ -288,8 +305,10 @@
                     <textarea data-album-images="${ai}" rows="5" placeholder="https://example.com/photo1.jpg&#10;https://example.com/photo2.jpg">${(album.images || []).join('\n')}</textarea>
                     <p class="form-help">第一张会自动作为默认封面；也可以单独填写上面的封面 URL。</p>
                 </div>
+                </div>
             </div>
-        `).join('') || '<p class="form-help">还没有写真集，点击右上角「新增写真集」开始。</p>';
+        `;
+        }).join('') || '<p class="form-help">还没有写真集，点击右上角「新增写真集」开始。</p>';
     }
 
     function renderNews() {
@@ -297,12 +316,19 @@
         const newsEnabledInput = $('#news-enabled');
         if (newsEnabledInput) newsEnabledInput.checked = findModule('news') ? findModule('news').visible !== false : true;
         $('#news-heading').value = data.heading || '';
-        $('#news-list').innerHTML = (data.items || []).map((item, i) => `
-            <div class="content-item admin-content-item" data-index="${i}">
-                <div class="content-item__head">
-                    <span class="content-item__name">动态 ${i + 1}</span>
-                    <button class="btn--danger" data-remove-news="${i}" title="删除动态">×</button>
+        $('#news-list').innerHTML = (data.items || []).map((item, i) => {
+            const src = [item.title, item.summary, item.date].join(' ').toLowerCase();
+            return `
+            <div class="content-item admin-content-item is-collapsed" data-index="${i}" data-search="${window.AdminCMS.esc(src)}">
+                <div class="content-item__head" data-toggle-item>
+                    <span class="content-item__name">${window.AdminCMS.esc(item.title || ('动态 ' + (i + 1)))}</span>
+                    <span class="item-meta">${window.AdminCMS.esc(item.date || '')}</span>
+                    <span class="item-tools">
+                        <button class="btn--danger" data-remove-news="${i}" title="删除动态">×</button>
+                        <span class="collapse-chevron">▾</span>
+                    </span>
                 </div>
+                <div class="content-item__body">
                 <div class="form-row">
                     <div class="form-group">
                         <label>日期</label>
@@ -319,8 +345,10 @@
                     <label style="margin-top:0.6rem">原始链接</label>
                     <input type="text" data-news-source="${i}" value="${window.AdminCMS.esc(item.sourceUrl || '')}" placeholder="https://weibo.com/... 或新闻来源">
                 </div>
+                </div>
             </div>
-        `).join('');
+        `;
+        }).join('');
     }
 
     function renderAwards() {
@@ -328,12 +356,20 @@
         const awardsEnabledInput = $('#awards-enabled');
         if (awardsEnabledInput) awardsEnabledInput.checked = findModule('awards') ? findModule('awards').visible !== false : true;
         $('#awards-heading').value = data.heading || '';
-        $('#awards-list').innerHTML = (data.items || []).map((item, i) => `
-            <div class="content-item admin-content-item" data-index="${i}">
-                <div class="content-item__head">
-                    <span class="content-item__name">荣誉 ${i + 1}</span>
-                    <button class="btn--danger" data-remove-award="${i}" title="删除荣誉">×</button>
+        $('#awards-list').innerHTML = (data.items || []).map((item, i) => {
+            const src = [item.name, item.org, item.work, item.year].join(' ').toLowerCase();
+            const meta = [item.year, item.org].filter(Boolean).join(' · ');
+            return `
+            <div class="content-item admin-content-item is-collapsed" data-index="${i}" data-search="${window.AdminCMS.esc(src)}">
+                <div class="content-item__head" data-toggle-item>
+                    <span class="content-item__name">${window.AdminCMS.esc(item.name || ('荣誉 ' + (i + 1)))}</span>
+                    <span class="item-meta">${window.AdminCMS.esc(meta)}</span>
+                    <span class="item-tools">
+                        <button class="btn--danger" data-remove-award="${i}" title="删除荣誉">×</button>
+                        <span class="collapse-chevron">▾</span>
+                    </span>
                 </div>
+                <div class="content-item__body">
                 <div class="form-row">
                     <div class="form-group">
                         <label>年份</label>
@@ -354,8 +390,10 @@
                         <input type="text" data-award-work="${i}" value="${window.AdminCMS.esc(item.work || '')}" placeholder="例如：岛屿来信">
                     </div>
                 </div>
+                </div>
             </div>
-        `).join('');
+        `;
+        }).join('');
     }
 
     function renderSchedule() {
@@ -363,12 +401,20 @@
         const scheduleEnabledInput = $('#schedule-enabled');
         if (scheduleEnabledInput) scheduleEnabledInput.checked = findModule('schedule') ? findModule('schedule').visible !== false : true;
         $('#schedule-heading').value = data.heading || '';
-        $('#schedule-list').innerHTML = (data.items || []).map((item, i) => `
-            <div class="content-item admin-content-item" data-index="${i}">
-                <div class="content-item__head">
-                    <span class="content-item__name">行程 ${i + 1}</span>
-                    <button class="btn--danger" data-remove-sched="${i}" title="删除行程">×</button>
+        $('#schedule-list').innerHTML = (data.items || []).map((item, i) => {
+            const src = [item.event, item.city, item.date, item.sourceUrl].join(' ').toLowerCase();
+            const meta = [item.date, item.city].filter(Boolean).join(' · ');
+            return `
+            <div class="content-item admin-content-item is-collapsed" data-index="${i}" data-search="${window.AdminCMS.esc(src)}">
+                <div class="content-item__head" data-toggle-item>
+                    <span class="content-item__name">${window.AdminCMS.esc(item.event || ('行程 ' + (i + 1)))}</span>
+                    <span class="item-meta">${window.AdminCMS.esc(meta)}</span>
+                    <span class="item-tools">
+                        <button class="btn--danger" data-remove-sched="${i}" title="删除行程">×</button>
+                        <span class="collapse-chevron">▾</span>
+                    </span>
                 </div>
+                <div class="content-item__body">
                 <div class="form-row">
                     <div class="form-group">
                         <label>日期</label>
@@ -385,18 +431,25 @@
                     <label style="margin-top:0.6rem">原始链接</label>
                     <input type="text" data-sched-source="${i}" value="${window.AdminCMS.esc(item.sourceUrl || '')}" placeholder="https://weibo.com/... 或官方来源">
                 </div>
+                </div>
             </div>
-        `).join('');
+        `;
+        }).join('');
         // 行程公告（微博监控等自动同步，无具体日期）
         const annContainer = $('#schedule-announcements');
         if (annContainer) {
             const announcements = data.announcements || [];
             annContainer.innerHTML = announcements.map((a, i) => `
-                <div class="content-item admin-content-item" data-announcement-index="${i}">
-                    <div class="content-item__head">
+                <div class="content-item admin-content-item is-collapsed" data-announcement-index="${i}" data-search="${window.AdminCMS.esc((a.text || '') + ' ' + (a.month || '') + '月')}">
+                    <div class="content-item__head" data-toggle-item>
                         <span class="content-item__name">公告（${window.AdminCMS.esc(a.month || '?')} 月）</span>
-                        <button class="btn--danger" data-remove-announcement="${i}" title="删除公告">×</button>
+                        <span class="item-meta">${window.AdminCMS.esc(String(a.text || '').slice(0, 40))}</span>
+                        <span class="item-tools">
+                            <button class="btn--danger" data-remove-announcement="${i}" title="删除公告">×</button>
+                            <span class="collapse-chevron">▾</span>
+                        </span>
                     </div>
+                    <div class="content-item__body">
                     <div class="form-row">
                         <div class="form-group">
                             <label>月份</label>
@@ -410,6 +463,7 @@
                     <div class="form-group">
                         <label>公告内容</label>
                         <textarea data-announcement-text="${i}" rows="4">${window.AdminCMS.esc(a.text || '')}</textarea>
+                    </div>
                     </div>
                 </div>
             `).join('') || '<p class="form-help">暂无公告</p>';
@@ -1356,11 +1410,145 @@
         }
     }
 
+    // 新增条目后自动展开（默认折叠）
+    function expandNewest(selector) {
+        const rows = document.querySelectorAll(selector);
+        const last = rows[rows.length - 1];
+        if (last) last.classList.remove('is-collapsed');
+    }
+
+    /* ===================================================================
+       列表浏览优化：折叠卡片 + 分区过滤 + 全局搜索
+       =================================================================== */
+    function bindListControls() {
+        // 1) 点击条目头部展开/收起（忽略按钮，避免误触删除）
+        document.addEventListener('click', e => {
+            const head = e.target.closest('[data-toggle-item]');
+            if (!head || e.target.closest('button')) return;
+            const item = head.closest('.admin-content-item, .admin-work-item, .admin-album-item');
+            if (item) item.classList.toggle('is-collapsed');
+        });
+
+        // 2) 分区内实时过滤
+        document.querySelectorAll('[data-filter-for]').forEach(input => {
+            input.addEventListener('input', () => {
+                const q = input.value.trim().toLowerCase();
+                const section = input.dataset.filterFor;
+                const countEl = input.parentElement.querySelector('.section-filter__count');
+                const rows = [];
+                if (section === 'works') rows.push(...document.querySelectorAll('#work-category-panel .admin-work-item'));
+                else if (section === 'gallery') rows.push(...document.querySelectorAll('#gallery-albums-list .admin-album-item'));
+                else if (section === 'news') rows.push(...document.querySelectorAll('#news-list .admin-content-item'));
+                else if (section === 'awards') rows.push(...document.querySelectorAll('#awards-list .admin-content-item'));
+                else if (section === 'schedule') {
+                    rows.push(...document.querySelectorAll('#schedule-list .admin-content-item'),
+                        ...document.querySelectorAll('#schedule-announcements .admin-content-item'));
+                }
+                let total = 0, shown = 0;
+                rows.forEach(r => {
+                    total++;
+                    const hit = !q || String(r.dataset.search || '').includes(q);
+                    r.style.display = hit ? '' : 'none';
+                    if (hit) shown++;
+                });
+                if (countEl) countEl.textContent = total ? (shown + ' / ' + total + ' 条') : '';
+            });
+        });
+
+        // 3) 全局搜索：跨分区检索，点击跳转定位
+        const gs = $('#globalSearch');
+        const gr = $('#globalSearchResults');
+        if (!gs || !gr) return;
+        const clean = s => String(s || '').toLowerCase();
+        const esc = window.AdminCMS.esc;
+
+        const buildGroups = () => {
+            const q = clean(gs.value.trim());
+            const groups = [];
+            const add = (label, section, entries) => {
+                const hits = entries.filter(e => clean(e.disp).includes(q)).slice(0, 12);
+                if (hits.length) groups.push({ label, section, hits });
+            };
+            // 作品（跨分类，key = ci-ii）
+            const works = [];
+            (config.works.categories || []).forEach((cat, ci) => (cat.items || []).forEach((it, ii) => {
+                works.push({ key: ci + '-' + ii, disp: it.title || ('未命名 ' + ci + '-' + ii) });
+            }));
+            add('作品', 'works', works);
+            add('写真集', 'gallery', (config.gallery.albums || []).map((a, i) => ({ key: String(i), disp: a.title + (a.author ? '（' + a.author + '）' : '') })));
+            add('动态', 'news', ((config.plugins && config.plugins.data['actor-news'] || {}).items || []).map((it, i) => ({ key: String(i), disp: (it.title || '') + ' ' + (it.date || '') })));
+            add('荣誉', 'awards', ((config.plugins && config.plugins.data['actor-awards'] || {}).items || []).map((it, i) => ({ key: String(i), disp: (it.name || '') + ' ' + (it.year || '') })));
+            add('行程', 'schedule', ((config.plugins && config.plugins.data['actor-schedule'] || {}).items || []).map((it, i) => ({ key: String(i), disp: (it.event || '') + ' · ' + (it.date || '') + (it.city ? ' · ' + it.city : '') })));
+            add('行程公告', 'schedule-ann', ((config.plugins && config.plugins.data['actor-schedule'] || {}).announcements || []).map((it, i) => ({ key: String(i), disp: (it.month ? it.month + '月' : '') + ' ' + (it.text || '').slice(0, 40) })));
+            add('社交链接', 'social', (config.social && config.social.links || []).map((it, i) => ({ key: String(i), disp: it.name || it.url || '' })));
+            add('版权链接', 'footer', ((config.footer && config.footer.links) || []).map((it, i) => ({ key: String(i), disp: it.text + ' ' + (it.url || '') })));
+            const mods = [];
+            (config.modules || []).forEach((m, i) => { if (m.type) mods.push({ key: String(i), disp: '模块 ' + m.type }); });
+            add('模块', 'modules', mods);
+            return groups;
+        };
+
+        gs.addEventListener('input', () => {
+            const q = gs.value.trim();
+            if (!q) { gr.style.display = 'none'; gr.innerHTML = ''; return; }
+            const groups = buildGroups();
+            gr.innerHTML = groups.map(g => `
+                <div class="global-search__group">
+                    <div class="global-search__label">${esc(g.label)}（${g.hits.length}）</div>
+                    ${g.hits.slice(0, 6).map(h => `<button type="button" class="global-search__item" data-goto="${g.section}" data-key="${esc(h.key)}">${esc(h.disp)}</button>`).join('')}
+                    ${g.hits.length > 6 ? `<div class="global-search__more">…共 ${g.hits.length} 条</div>` : ''}
+                </div>`).join('') || '<div class="global-search__empty">无匹配内容</div>';
+            gr.style.display = 'block';
+        });
+
+        gr.addEventListener('click', e => {
+            const btn = e.target.closest('[data-goto]');
+            if (!btn) return;
+            const section = btn.dataset.goto;
+            const key = btn.dataset.key;
+            const q = gs.value.trim();
+            // 切换到目标分区
+            const nav = document.querySelector('.sidebar__link[data-section="' + section + '"]');
+            if (nav) nav.click();
+            else if (section === 'schedule-ann') {
+                const s = document.querySelector('.sidebar__link[data-section="schedule"]');
+                if (s) s.click();
+            }
+            // 应用分区过滤
+            const f = document.querySelector('[data-filter-for="' + section + '"]');
+            if (f) { f.value = q; f.dispatchEvent(new Event('input')); }
+            // 定位并展开目标条目
+            const row = section === 'works' ? document.querySelector('[data-work-key="' + key + '"]')
+                : section === 'gallery' ? document.querySelector('[data-album-index="' + key + '"]')
+                : section === 'schedule-ann' ? document.querySelector('[data-announcement-index="' + key + '"]')
+                : section === 'social' ? document.querySelector('#social-list [data-index="' + key + '"]')
+                : section === 'footer' ? document.querySelector('#footer-links-list [data-index="' + key + '"]')
+                : section === 'modules' ? document.querySelector('#modules-list [data-module-index="' + key + '"]')
+                : section === 'news' ? document.querySelector('#news-list [data-index="' + key + '"]')
+                : section === 'awards' ? document.querySelector('#awards-list [data-index="' + key + '"]')
+                : document.querySelector('#schedule-list [data-index="' + key + '"]');
+            if (row) {
+                row.classList.remove('is-collapsed');
+                row.style.display = '';
+                row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                row.style.outline = '2px solid var(--color-accent)';
+                setTimeout(() => { row.style.outline = ''; }, 2500);
+            }
+            gr.style.display = 'none';
+            gs.blur();
+        });
+
+        document.addEventListener('click', e => {
+            if (!e.target.closest('.global-search')) gr.style.display = 'none';
+        });
+    }
+
     function bindGlobal() {
         bindSectionNav();
         bindMedia();
         bindTheme();
         bindAutoSave();
+        bindListControls();
 
         $('#btnPreview').addEventListener('click', e => {
             e.preventDefault();
@@ -1398,6 +1586,7 @@
             config.works.categories.push({ name: '新分类', items: [] });
             selectedWorkCategory = config.works.categories.length - 1;
             renderWorks();
+            expandNewest('#work-category-panel .admin-work-item');
         });
 
         $('#btn-remove-work-cat').addEventListener('click', () => {
@@ -1415,6 +1604,7 @@
                 if (!config.works.categories[ci]) return;
                 config.works.categories[ci].items.push({ title: '', role: '', year: '', type: '', director: '', poster: '', synopsis: '', images: [] });
                 renderWorks();
+                expandNewest('#work-category-panel .admin-work-item');
                 return;
             }
             const btn = e.target.closest('[data-remove-work]');
@@ -1469,6 +1659,7 @@
             if (!Array.isArray(config.gallery.albums)) config.gallery.albums = [];
             config.gallery.albums.push({ title: '新写真集', cover: '', images: [] });
             renderGallery();
+            expandNewest('#gallery-albums-list .admin-album-item');
         });
         $('#gallery-albums-list').addEventListener('click', e => {
             const btn = e.target.closest('[data-remove-album]');
@@ -1485,6 +1676,7 @@
             const data = config.plugins.data['actor-news'] = config.plugins.data['actor-news'] || { heading: '', items: [] };
             data.items.push({ date: '', title: '', summary: '' });
             renderNews();
+            expandNewest('#news-list .admin-content-item');
         });
         $('#news-list').addEventListener('click', e => {
             const btn = e.target.closest('[data-remove-news]');
@@ -1501,6 +1693,7 @@
             const data = config.plugins.data['actor-awards'] = config.plugins.data['actor-awards'] || { heading: '', items: [] };
             data.items.push({ year: '', name: '', org: '', work: '' });
             renderAwards();
+            expandNewest('#awards-list .admin-content-item');
         });
         $('#awards-list').addEventListener('click', e => {
             const btn = e.target.closest('[data-remove-award]');
@@ -1517,6 +1710,7 @@
             const data = config.plugins.data['actor-schedule'] = config.plugins.data['actor-schedule'] || { heading: '', items: [] };
             data.items.push({ date: '', city: '', event: '' });
             renderSchedule();
+            expandNewest('#schedule-list .admin-content-item');
         });
         $('#schedule-list').addEventListener('click', e => {
             const btn = e.target.closest('[data-remove-sched]');

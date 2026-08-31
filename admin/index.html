@@ -46,6 +46,10 @@
         <div class="topbar">
             <h2 class="topbar__title" id="topbarTitle">演员信息</h2>
             <div class="topbar__actions">
+                <div class="global-search">
+                    <input type="search" id="globalSearch" placeholder="搜索全部内容…（作品/写真/动态/荣誉/行程/链接）" autocomplete="off">
+                    <div class="global-search__results" id="globalSearchResults" style="display:none"></div>
+                </div>
                 <span class="topbar__status" id="saveStatus"></span>
                 <button class="btn btn--primary" id="btnSave">保存修改</button>
             </div>
@@ -113,6 +117,10 @@
                 <h3>代表作品</h3>
                 <button type="button" class="btn btn--ghost btn--sm" id="btn-add-work">+ 添加分类</button>
             </div>
+            <div class="section-filter">
+                <input type="search" data-filter-for="works" placeholder="搜索当前分类下的作品…">
+                <span class="section-filter__count"></span>
+            </div>
             <div class="form-group">
                 <label class="toggle-label">
                     <input type="checkbox" id="works-enabled"> 启用代表作品模块
@@ -141,6 +149,10 @@
                 <h3>写真集管理</h3>
                 <button type="button" class="btn btn--ghost btn--sm" id="btn-add-album">+ 新增写真集</button>
             </div>
+            <div class="section-filter">
+                <input type="search" data-filter-for="gallery" placeholder="搜索写真集标题/作者…">
+                <span class="section-filter__count"></span>
+            </div>
             <div class="form-group">
                 <label class="toggle-label">
                     <input type="checkbox" id="gallery-enabled"> 启用写真模块
@@ -158,6 +170,10 @@
             <div class="section-header">
                 <h3>动态</h3>
                 <button type="button" class="btn btn--ghost btn--sm" id="btn-add-news">+ 添加动态</button>
+            </div>
+            <div class="section-filter">
+                <input type="search" data-filter-for="news" placeholder="搜索动态标题/摘要…">
+                <span class="section-filter__count"></span>
             </div>
             <div class="form-group">
                 <label class="toggle-label">
@@ -177,6 +193,10 @@
                 <h3>荣誉</h3>
                 <button type="button" class="btn btn--ghost btn--sm" id="btn-add-awards">+ 添加荣誉</button>
             </div>
+            <div class="section-filter">
+                <input type="search" data-filter-for="awards" placeholder="搜索奖项名称/颁奖方/作品…">
+                <span class="section-filter__count"></span>
+            </div>
             <div class="form-group">
                 <label class="toggle-label">
                     <input type="checkbox" id="awards-enabled"> 启用荣誉模块
@@ -194,6 +214,10 @@
             <div class="section-header">
                 <h3>行程</h3>
                 <button type="button" class="btn btn--ghost btn--sm" id="btn-add-schedule">+ 添加行程</button>
+            </div>
+            <div class="section-filter">
+                <input type="search" data-filter-for="schedule" placeholder="搜索行程事项/城市/公告…">
+                <span class="section-filter__count"></span>
             </div>
             <div class="form-group">
                 <label class="toggle-label">

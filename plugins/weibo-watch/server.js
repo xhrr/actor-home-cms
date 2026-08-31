@@ -269,16 +269,24 @@ module.exports = function (ctx) {
         res.json({ ...d, cookie: d.cookie ? '***已配置***' : '', llmKey: d.llmKey ? '***已配置***' : '' });
     });
 
-    // 自适应轮询：月底 25 号起每 30 分钟检查一次，当天成功过则跳过
+    // 自动同步窗口：每月最后 3 天 + 次月前 3 天（如 8/29-31 与 9/1-3）
+    function inAutoWindow(d) {
+        const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+        const day = d.getDate();
+        return day <= 3 || day >= lastDay - 2;
+    }
+
+    // 自适应轮询：每 30 分钟检查一次窗口；窗口内每 3 小时尝试一次（lastAutoRun 记最近尝试）
+    const AUTO_INTERVAL = 3 * 60 * 60 * 1000;
     const TICK = 30 * 60 * 1000;
     const tick = setInterval(async () => {
         try {
             const config = ctx.getData();
             if (config.autoSync === false) return;
             const now = new Date();
-            if (now.getDate() < 25) return;
-            const last = config.lastSync ? new Date(config.lastSync) : null;
-            if (last && last.toDateString() === now.toDateString()) return;
+            if (!inAutoWindow(now)) return;
+            const last = config.lastAutoRun ? new Date(config.lastAutoRun) : null;
+            if (last && now.getTime() - last.getTime() < AUTO_INTERVAL) return;
             const weibos = await fetchWeibos(config, MAX_PAGES);
             const target = latestScheduleMonth(config.targetMonth);
             const hits = dedupe(weibos.filter(w => isScheduleWeibo(w.text, config.keyword) && mentionsMonth(w.text, target.month)));
@@ -289,8 +297,9 @@ module.exports = function (ctx) {
                     const { added } = applyToSchedule(parsed, 'https://m.weibo.cn/status/' + hit.id);
                     totalAdded += added;
                 }
-                ctx.log('月底自动同步:', target.label, '命中', hits.length, '条，新增', totalAdded, '条');
+                ctx.log('自动同步:', target.label, '命中', hits.length, '条，新增', totalAdded, '条');
             }
+            await ctx.setData({ ...config, lastAutoRun: now.toISOString() });
         } catch (e) {
             ctx.log('自动同步失败:', e.message);
         }
