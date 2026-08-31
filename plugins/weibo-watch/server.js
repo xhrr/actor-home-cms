@@ -37,31 +37,38 @@ function isScheduleWeibo(text, keyword) {
     return hasKw && hasMonth && /行程|安排|通告|档期/.test(text);
 }
 
+/** 正文是否提到目标月份（如「同步8月行程」→ mentionsMonth(text, 8)===true） */
+function mentionsMonth(text, month) {
+    return [...String(text || '').matchAll(/(\d{1,2})月/g)].some(m => parseInt(m[1], 10) === month);
+}
+
 /* ---------------- AI 解析 ---------------- */
 
 /**
  * LLM 解析行程微博正文 → { items: [{date, city, event}], announcement }
  * 默认小米 MiMo（OpenAI 兼容 /chat/completions），后台可配置 baseUrl/key/model。
  */
-async function parseWithLLM(text, config) {
+async function parseWithLLM(text, config, target) {
     const base = String(config.llmBaseUrl || '').trim().replace(/\/+$/, '') || 'https://api.xiaomimimo.com/v1';
     const key = String(config.llmKey || '').trim();
     const model = String(config.llmModel || '').trim() || 'Mimo-V2.5';
     if (!key) throw new Error('未配置 AI 解析 Key（插件设置中填写 AI Key）');
-    const currentYear = new Date().getFullYear();
+    const ty = (target && target.year) || new Date().getFullYear();
+    const tm = (target && target.month) || new Date().getMonth() + 1;
 
-    const prompt = `你是演员行程解析助手。把微博行程正文解析为结构化 JSON。
+    const prompt = `你是演员行程解析助手。把微博行程正文解析为结构化 JSON。当前只监控 ${ty} 年 ${tm} 月的行程。
 
 规则：
-1. 提取所有行程安排；同一项目的连续阶段（定妆→围读→开机→拍摄→杀青等）合并为一条：date 取第一阶段日期，event 用「 → 」连接各阶段（如「新项目定妆 → 开机 → 杀青」），city 取第一阶段城市。
-2. 日期格式 yyyy-MM-dd。年份基准：本年 ${currentYear}；仅当 12 月发布次年 1 月行程时跨到 ${currentYear + 1} 年；其余一律用本年，禁止把 1 月行程误判为明年。
-3. 城市：取括号或地名（成都、西安、横店、川渝地区等）；没有则空字符串。
-4. 无具体日期只有安排的（如“保密项目定妆3天 → 开机，地点：川渝地区”）：items 返回空数组，摘要写入 announcement，格式以「N月行程公告：」开头（N 为正文出现的月份），只保留安排主体、省略保密条款。
-5. 注意：只要正文包含具体日期行程，announcement 一律输出空字符串 ""（不要把正文末尾的补充语句当公告）。
-6. 忽略话题标签（#...#）与“同步X月行程：”前缀。
+1. 只提取 ${ty} 年 ${tm} 月的行程安排；正文中其他月份的安排一律忽略，不要输出。
+2. 同一项目的连续阶段（定妆→围读→开机→拍摄→杀青等）合并为一条：date 取第一阶段日期，event 用「 → 」连接各阶段（如「新项目定妆 → 开机 → 杀青」），city 取第一阶段城市。
+3. 日期格式 yyyy-MM-dd，年份一律 ${ty}，禁止出现 ${tm} 月以外的日期。
+4. 城市：取括号或地名（成都、西安、横店、川渝地区等）；没有则空字符串。
+5. 无具体日期只有安排的（如“保密项目定妆3天 → 开机，地点：川渝地区”）：items 返回空数组，摘要写入 announcement，格式以「${tm}月行程公告：」开头，只保留安排主体、省略保密条款。
+6. 注意：只要正文包含 ${ty} 年 ${tm} 月的具体日期行程，announcement 一律输出空字符串 ""（不要把正文末尾的补充语句当公告）。
+7. 忽略话题标签（#...#）与“同步X月行程：”前缀。
 
 只输出 JSON，不要任何解释或代码块标记：
-{"items":[{"date":"2026-07-03","city":"成都","event":"新项目定妆 → 开机 → 杀青"}],"announcement":""}`;
+{"items":[{"date":"${ty}-${String(tm).padStart(2, '0')}-03","city":"成都","event":"新项目定妆 → 开机 → 杀青"}],"announcement":""}`;
 
     const res = await fetch(base + '/chat/completions', {
         method: 'POST',
@@ -205,13 +212,13 @@ module.exports = function (ctx) {
             const config = ctx.getData();
             const weibos = await fetchWeibos(config, MAX_PAGES);
             const target = latestScheduleMonth(config.targetMonth);
-            const hits = dedupe(weibos.filter(w => isScheduleWeibo(w.text, config.keyword)));
+            const hits = dedupe(weibos.filter(w => isScheduleWeibo(w.text, config.keyword) && mentionsMonth(w.text, target.month)));
             if (!hits.length) {
-                return res.json({ ok: true, hit: false, latest: weibos.slice(0, 5).map(w => w.text.slice(0, 50)), message: '最近微博中没有匹配的行程微博' });
+                return res.json({ ok: true, hit: false, latest: weibos.slice(0, 5).map(w => w.text.slice(0, 50)), message: `最近微博中没有「${target.label}」的行程微博` });
             }
             const parsedAll = [];
             for (const hit of hits) {
-                const parsed = await parseWithLLM(hit.text, config);
+                const parsed = await parseWithLLM(hit.text, config, target);
                 parsedAll.push({ weibo: { id: hit.id, text: hit.text, date: hit.created_at, pics: hit.pics }, ...parsed });
             }
             const first = parsedAll[0];
@@ -231,16 +238,16 @@ module.exports = function (ctx) {
             const config = ctx.getData();
             const weibos = await fetchWeibos(config, MAX_PAGES);
             const target = latestScheduleMonth(config.targetMonth);
-            const hits = dedupe(weibos.filter(w => isScheduleWeibo(w.text, config.keyword)));
+            const hits = dedupe(weibos.filter(w => isScheduleWeibo(w.text, config.keyword) && mentionsMonth(w.text, target.month)));
             if (!hits.length) {
-                return res.json({ ok: true, applied: 0, message: '最近微博中没有匹配的行程微博' });
+                return res.json({ ok: true, applied: 0, message: `最近微博中没有「${target.label}」的行程微博` });
             }
             const processed = Array.isArray(config.processed) ? config.processed : [];
             let totalAdded = 0;
             let annUpdated = 0;
             const summary = [];
             for (const hit of hits) {
-                const parsed = await parseWithLLM(hit.text, config);
+                const parsed = await parseWithLLM(hit.text, config, target);
                 const { added, announcementUpdated } = applyToSchedule(parsed, 'https://m.weibo.cn/status/' + hit.id);
                 totalAdded += added;
                 if (announcementUpdated) annUpdated++;
@@ -274,11 +281,11 @@ module.exports = function (ctx) {
             if (last && last.toDateString() === now.toDateString()) return;
             const weibos = await fetchWeibos(config, MAX_PAGES);
             const target = latestScheduleMonth(config.targetMonth);
-            const hits = dedupe(weibos.filter(w => isScheduleWeibo(w.text, config.keyword)));
+            const hits = dedupe(weibos.filter(w => isScheduleWeibo(w.text, config.keyword) && mentionsMonth(w.text, target.month)));
             if (hits.length) {
                 let totalAdded = 0;
                 for (const hit of hits) {
-                    const parsed = await parseWithLLM(hit.text, config);
+                    const parsed = await parseWithLLM(hit.text, config, target);
                     const { added } = applyToSchedule(parsed, 'https://m.weibo.cn/status/' + hit.id);
                     totalAdded += added;
                 }

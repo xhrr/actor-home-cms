@@ -15,7 +15,7 @@
                     <div class="form-group">
                         <label>目标月份</label>
                         <input type="number" id="ww-target" min="0" max="6" value="${window.AdminCMS.esc(data.targetMonth || 1)}" placeholder="1">
-                        <p class="form-help">1 = 下个月（月底抓到的“同步X月行程”通常是下个月）</p>
+                        <p class="form-help">1 = 下个月。插件只监控「当月发布、提到目标月份」的行程微博（默认即下个月行程），其他月份自动忽略。</p>
                     </div>
                 </div>
                 <div class="form-group">
