@@ -1410,6 +1410,10 @@ a {
     font-weight: 400;
     letter-spacing: -0.02em;
     transition: font-style 0.4s ease;
+    /* 超长标题展示截断（数据完整保留） */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .album-card:hover .album-card__title {
@@ -1475,6 +1479,11 @@ a {
     font-size: clamp(2rem, 4vw, 3.5rem);
     font-weight: 400;
     letter-spacing: -0.03em;
+    /* 超长标题展示截断（数据完整保留） */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
 }
 
 @media (max-width: 900px) {

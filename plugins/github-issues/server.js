@@ -18,8 +18,8 @@ function parseIssueBody(body) {
     let listKey = null;
     const lines = String(body || '').split(/\r?\n/);
 
-    for (const raw of lines) {
-        const line = raw.trim();
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
         if (!line) continue;
 
         // 兼容 "- item" 与 "-item"（连字符后无空格）两种列表写法
@@ -40,7 +40,23 @@ function parseIssueBody(body) {
         const key = kv[1].trim().toLowerCase();
         const value = kv[2].trim();
 
-        if (key === 'images' || key === 'photos' || key === '图片') {
+        if (key === 'title') {
+            // 多行标题：把后续连续的文本行并入标题（空格连接）；遇到下一个键值对/列表项/URL/空行即停；
+            // 纯话题残留行（[#马倩倩] / #马倩倩）跳过不并入。展示层负责超长截断。
+            listKey = null;
+            const parts = [value];
+            while (i + 1 < lines.length) {
+                const nx = lines[i + 1].trim();
+                if (!nx) break;
+                if (/^\[?#[^\[\]#]+\]?$/.test(nx)) { i++; continue; } // 话题行
+                if (/^[a-zA-Z\u4e00-\u9fff]+\s*[:：]/.test(nx)) break; // 下一键值对
+                if (/^[-*]\s*/.test(nx)) break; // 列表项
+                if (/^https?:\/\/\S+$/.test(nx)) break; // 裸 URL
+                parts.push(nx);
+                i++;
+            }
+            data.title = parts.join(' ');
+        } else if (key === 'images' || key === 'photos' || key === '图片') {
             listKey = 'images';
             data.images = value ? [value] : [];
         } else if (key === 'image' || key === '封面') {
