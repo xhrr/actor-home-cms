@@ -900,6 +900,21 @@ a {
     color: var(--fg-40);
 }
 
+.footer__copy-link {
+    color: var(--fg-40);
+    padding-bottom: 0.15rem;
+    border-bottom: 1px solid transparent;
+    transition: color 0.3s, border-bottom-color 0.3s;
+}
+.footer__copy-link:hover {
+    color: var(--fg);
+    border-bottom-color: var(--fg-60);
+}
+.footer__copy-sep {
+    margin: 0 0.4rem;
+    color: var(--fg-20);
+}
+
 /* ===================================================================
    响应式
    =================================================================== */

@@ -370,6 +370,26 @@ a { text-decoration: none; color: inherit; }
     grid-template-columns: 1fr 1fr 1fr 1fr auto;
 }
 
+/* 页脚版权链接行：文字 + 链接 + 固定标/删除按钮 */
+.footer-link-item {
+    grid-template-columns: 1fr 2fr auto;
+}
+.footer-link-item input[readonly] {
+    background: var(--color-bg);
+    color: var(--color-text-muted);
+    cursor: not-allowed;
+}
+.fixed-badge {
+    align-self: center;
+    justify-self: end;
+    font-size: 0.72rem;
+    white-space: nowrap;
+    color: var(--color-accent);
+    border: 1px solid rgba(200, 164, 107, 0.4);
+    border-radius: 3px;
+    padding: 0.15rem 0.45rem;
+}
+
 /* ========== Module Management ========== */
 .module-add {
     display: flex;

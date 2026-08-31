@@ -12,6 +12,9 @@
     let autosaveTimer = null;
     let selectedWorkCategory = 0;
 
+    // 页脚固定版权链接：后台只读不可删，配置保存时恒放末位
+    const FIXED_FOOTER_LINK = { text: '©杉果派', url: 'https://v.douyin.com/KJbd9GVc17Q/' };
+
     // 这些插件已有独立后台分区，不在插件面板中重复编辑
     const DEDICATED_PLUGIN_NAMES = ['actor-news', 'actor-awards', 'actor-schedule'];
 
@@ -112,6 +115,22 @@
         const footerEnabledInput = $('#footer-enabled');
         if (footerEnabledInput) footerEnabledInput.checked = findModule('footer') ? findModule('footer').visible !== false : true;
         $('#footer-copyright').value = footer.copyright || '';
+
+        const links = Array.isArray(footer.links) ? footer.links : [];
+        const container = $('#footer-links-list');
+        if (!container) return;
+        container.innerHTML = links.map((link, i) => {
+            const fixed = link && link.text === FIXED_FOOTER_LINK.text && link.url === FIXED_FOOTER_LINK.url;
+            return `
+            <div class="list-item footer-link-item${fixed ? ' is-fixed' : ''}" data-index="${i}">
+                <input type="text" data-footer-link-text="${i}" value="${window.AdminCMS.esc(link.text || '')}" placeholder="显示文字" ${fixed ? 'readonly' : ''}>
+                <input type="text" data-footer-link-url="${i}" value="${window.AdminCMS.esc(link.url || '')}" placeholder="https://... 跳转链接" ${fixed ? 'readonly' : ''}>
+                ${fixed
+                    ? '<span class="fixed-badge" title="固定版权声明：©杉果派 → 抖音">固定</span>'
+                    : `<button class="btn--danger" data-remove-footer-link="${i}" title="删除版权链接">×</button>`}
+            </div>
+        `;
+        }).join('');
     }
 
     function renderWorks() {
@@ -655,6 +674,19 @@
         config.footer.copyright = $('#footer-copyright').value;
         const footerEnabledInput = $('#footer-enabled');
         if (footerEnabledInput) setModuleVisible('footer', footerEnabledInput.checked);
+
+        const links = [];
+        document.querySelectorAll('#footer-links-list .footer-link-item').forEach(item => {
+            const i = item.dataset.index;
+            const text = item.querySelector(`[data-footer-link-text="${i}"]`).value.trim();
+            const url = item.querySelector(`[data-footer-link-url="${i}"]`).value.trim();
+            if (!text && !url) return;
+            links.push({ text, url });
+        });
+        // 去掉与固定条重复的条目；固定条恒在末位
+        const filtered = links.filter(l => !(l.text === FIXED_FOOTER_LINK.text && l.url === FIXED_FOOTER_LINK.url));
+        filtered.push({ ...FIXED_FOOTER_LINK });
+        config.footer.links = filtered;
     }
 
     function collectGallery() {
@@ -1314,6 +1346,30 @@
             config.social.links.splice(idx, 1);
             renderSocial();
         });
+
+        // 页脚版权链接：新增插到固定条（末位）之前；固定条不可删除
+        $('#btn-add-footer-link').addEventListener('click', () => {
+            config.footer = config.footer || {};
+            if (!Array.isArray(config.footer.links)) config.footer.links = [];
+            const fixedIdx = config.footer.links.findIndex(l => l && l.text === FIXED_FOOTER_LINK.text && l.url === FIXED_FOOTER_LINK.url);
+            if (fixedIdx >= 0) config.footer.links.splice(fixedIdx, 0, { text: '', url: '' });
+            else config.footer.links.push({ text: '', url: '' });
+            renderFooter();
+        });
+        const footerLinksList = $('#footer-links-list');
+        if (footerLinksList) {
+            footerLinksList.addEventListener('click', e => {
+                const btn = e.target.closest('[data-remove-footer-link]');
+                if (!btn) return;
+                const links = Array.isArray(config.footer.links) ? config.footer.links : [];
+                const idx = parseInt(btn.dataset.removeFooterLink);
+                const target = links[idx];
+                if (!target) return;
+                if (target.text === FIXED_FOOTER_LINK.text && target.url === FIXED_FOOTER_LINK.url) return; // 固定条不可删
+                links.splice(idx, 1);
+                renderFooter();
+            });
+        }
 
         // 写真集
         $('#btn-add-album').addEventListener('click', () => {

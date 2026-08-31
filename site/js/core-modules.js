@@ -321,6 +321,18 @@ window.CMS.registerModule('hero', function (mod) {
         const footer = C.footer || {};
         const links = social.links || [];
         const copyright = footer.copyright || '';
+        // 版权链接：可配置多条；无效条目（文字与链接都为空）不渲染
+        const copyLinks = (Array.isArray(footer.links) ? footer.links : [])
+            .filter(l => l && (String(l.text || '').trim() || String(l.url || '').trim()));
+        const parts = [];
+        if (copyright) parts.push(esc(copyright));
+        copyLinks.forEach(l => {
+            const url = safeUrl(l.url, 'link');
+            const text = esc(String(l.text || l.url || '').trim());
+            parts.push(url
+                ? `<a class="footer__copy-link" href="${url}" target="_blank" rel="noopener noreferrer">${text}</a>`
+                : `<span class="footer__copy-text">${text}</span>`);
+        });
         return `
 <footer class="footer" id="footer" data-module="footer">
     <div class="footer__inner">
@@ -328,7 +340,7 @@ window.CMS.registerModule('hero', function (mod) {
         <div class="footer__social">
             ${links.map(l => `<a href="${safeUrl(l.url, 'link') || '#'}" target="_blank" rel="noopener noreferrer">${esc(l.name)}</a>`).join('')}
         </div>
-        <p class="footer__copy">${esc(copyright)}</p>
+        <p class="footer__copy">${parts.join('<span class="footer__copy-sep"> · </span>')}</p>
     </div>
 </footer>`;
     }, { nav: { href: '#footer', text: '联系' } });
