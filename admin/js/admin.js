@@ -552,6 +552,10 @@
                         <div class="plugin-panel" data-plugin-panel="${plugin.name}">
                             ${panel.render ? panel.render(data) : ''}
                         </div>
+                        <div class="plugin-panel__actions">
+                            <button type="button" class="btn btn--primary btn--sm" data-save-plugin="${plugin.name}">保存配置</button>
+                            <span class="plugin-panel__status" data-plugin-save-status="${plugin.name}"></span>
+                        </div>
                     ` : ''}
                     ${isEnabled && DEDICATED_PLUGIN_NAMES.includes(plugin.name) ? `<p class="plugin-card__desc">该插件内容请在左侧「${plugin.manifest.label || ''}」分区编辑。</p>` : ''}
                     ${isEnabled && !panel && !DEDICATED_PLUGIN_NAMES.includes(plugin.name) ? `<p class="plugin-card__desc">该插件没有提供后台面板，仍可通过 JSON 数据文件管理。</p>` : ''}
@@ -1579,6 +1583,40 @@
         $('#plugins-list').addEventListener('click', e => {
             const btn = e.target.closest('[data-toggle-plugin]');
             if (btn) togglePlugin(btn.dataset.togglePlugin);
+            const saveBtn = e.target.closest('[data-save-plugin]');
+            if (saveBtn) savePluginPanel(saveBtn.dataset.savePlugin);
         });
+    }
+
+    // 插件面板「保存配置」：数据走插件独立端点，互不影响
+    async function savePluginPanel(name) {
+        const panel = panels[name];
+        const statusEl = document.querySelector(`[data-plugin-save-status="${name}"]`);
+        if (!panel || typeof panel.collect !== 'function') return;
+        try {
+            const res = await fetch('/api/plugins/' + encodeURIComponent(name) + '/data', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(panel.collect() || {})
+            });
+            const json = await res.json().catch(() => ({}));
+            if (res.ok) {
+                if (statusEl) {
+                    statusEl.textContent = '✅ 已保存';
+                    statusEl.style.color = '#28a745';
+                    setTimeout(() => { if (statusEl.textContent === '✅ 已保存') statusEl.textContent = ''; }, 2500);
+                }
+            } else {
+                if (statusEl) {
+                    statusEl.textContent = '❌ ' + (json.error || '保存失败（' + res.status + '）');
+                    statusEl.style.color = '#dc3545';
+                }
+            }
+        } catch (e) {
+            if (statusEl) {
+                statusEl.textContent = '❌ ' + e.message;
+                statusEl.style.color = '#dc3545';
+            }
+        }
     }
 })();
