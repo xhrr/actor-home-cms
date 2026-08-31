@@ -254,7 +254,7 @@ a {
     min-height: 100vh;
     display: flex;
     align-items: flex-end;
-    padding: calc(var(--nav-h) + 3rem) 1.5rem 4rem;
+    padding: calc(var(--nav-h) + 3rem) 1.5rem 2.5rem;
     overflow: hidden;
 }
 
@@ -325,17 +325,6 @@ a {
     font-style: italic;
     color: var(--fg-60);
     line-height: 1.75;
-    text-shadow: 0 1px 2px rgba(249, 248, 246, 0.92), 0 0 12px rgba(249, 248, 246, 0.6);
-}
-
-.hero__scroll {
-    display: inline-block;
-    margin-top: 4rem;
-    font-family: var(--font-sans);
-    font-size: 0.7rem;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: var(--fg-40);
     text-shadow: 0 1px 2px rgba(249, 248, 246, 0.92), 0 0 12px rgba(249, 248, 246, 0.6);
 }
 
@@ -1181,7 +1170,7 @@ a {
     width: 100%;
     max-width: var(--container);
     margin: 0 auto;
-    padding: calc(var(--nav-h) + 3rem) 1.5rem 4rem;
+    padding: calc(var(--nav-h) + 3rem) 1.5rem 2rem;
 }
 
 .hero-split__eyebrow {
@@ -1212,17 +1201,6 @@ a {
     font-style: italic;
     color: var(--fg-60);
     line-height: 1.75;
-    text-shadow: 0 1px 2px rgba(249, 248, 246, 0.92), 0 0 12px rgba(249, 248, 246, 0.6);
-}
-
-.hero-split__scroll {
-    display: inline-block;
-    margin-top: 4rem;
-    font-family: var(--font-sans);
-    font-size: 0.7rem;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: var(--fg-40);
     text-shadow: 0 1px 2px rgba(249, 248, 246, 0.92), 0 0 12px rgba(249, 248, 246, 0.6);
 }
 

@@ -100,7 +100,6 @@
         const heroEnabledInput = $('#hero-enabled');
         if (heroEnabledInput) heroEnabledInput.checked = !!heroEnabled;
         $('#hero-image').value = hero.image || '';
-        $('#hero-scroll').value = hero.scrollHint || '';
         $('#hero-split-images').value = (splitMod && splitMod.images || []).join('\n');
         toggleHeroSplitFields();
     }
@@ -776,7 +775,6 @@
         config.hero = config.hero || {};
         config.hero.mode = $('#hero-mode').value;
         config.hero.image = $('#hero-image').value;
-        config.hero.scrollHint = $('#hero-scroll').value;
         const heroEnabledInput = $('#hero-enabled');
         if (heroEnabledInput && !heroEnabledInput.checked) {
             const heroMod = findModule('hero');

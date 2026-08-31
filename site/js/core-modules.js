@@ -19,7 +19,6 @@ window.CMS.registerModule('hero', function (mod) {
         const name = esc(actor.name || 'Actor');
         const nameEn = esc(actor.nameEn || '');
         const tagline = esc(actor.tagline || actor.title || '');
-        const scroll = esc(hero.scrollHint || 'SCROLL');
         return `
 <section class="hero" id="hero" data-module="hero">
     <div class="hero__media">
@@ -29,7 +28,6 @@ window.CMS.registerModule('hero', function (mod) {
         <p class="hero__eyebrow">${nameEn}</p>
         <h1 class="hero__title">${name}</h1>
         <p class="hero__subtitle">${tagline}</p>
-        <span class="hero__scroll">${scroll}</span>
     </div>
 </section>`;
     }, { nav: { href: '#hero', text: '首页' } });
@@ -55,7 +53,6 @@ window.CMS.registerModule('hero', function (mod) {
         <p class="hero-split__eyebrow">${nameEn}</p>
         <h1 class="hero-split__title">${name}</h1>
         <p class="hero-split__subtitle">${tagline}</p>
-        <span class="hero-split__scroll">${esc(hero.scrollHint || 'SCROLL')}</span>
     </div>
 </section>`;
     }, { nav: { href: '#hero-split', text: '首页' } });
