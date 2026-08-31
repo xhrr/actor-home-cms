@@ -940,29 +940,29 @@ a {
 .footer__disclaimer-tip {
     position: absolute;
     bottom: calc(100% + 10px);
-    left: 0;
+    left: 50%;
+    transform: translateX(-50%);
     z-index: 40;
-    display: none;
-    max-width: min(340px, 78vw);
-    padding: 0.75rem 1rem;
+    width: max-content; /* 以最长行为宽度，避免被窄父容器压成竖柱 */
+    max-width: min(420px, 80vw);
+    padding: 0.85rem 1.1rem;
     background: var(--bg);
-    border: 1px solid var(--fg-10);
+    border: 1px solid var(--fg-20);
     color: var(--fg-60);
-    font-size: 0.75rem;
-    line-height: 1.7;
+    font-size: 0.78rem;
+    line-height: 1.75;
     white-space: pre-line;
+    text-align: left;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.18s ease, visibility 0.18s ease;
 }
 .footer__disclaimer:hover .footer__disclaimer-tip,
 .footer__disclaimer:focus-within .footer__disclaimer-tip,
 .footer__disclaimer.is-open .footer__disclaimer-tip {
-    display: block;
-}
-@media (max-width: 640px) {
-    .footer__disclaimer-tip {
-        left: 50%;
-        transform: translateX(-50%);
-        white-space: normal;
-    }
+    opacity: 1;
+    visibility: visible;
 }
 
 /* ===================================================================
