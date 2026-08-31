@@ -1,6 +1,6 @@
 {
   "name": "weibo-watch",
-  "label": "微博行程监控",
+  "label": "倩一波日常",
   "version": "0.1.0",
   "description": "定时抓取指定微博账号的行程微博（如“同步8月行程”），解析正文后更新到近期行程。",
   "author": "Actor CMS",

@@ -3,7 +3,7 @@
     if (!window.AdminCMS) return;
 
     window.AdminCMS.registerPluginPanel('weibo-watch', {
-        label: '微博行程监控',
+        label: '倩一波日常',
         render: function (data) {
             data = data || {};
             return `
