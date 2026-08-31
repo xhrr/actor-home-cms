@@ -334,6 +334,13 @@ window.CMS.registerModule('hero', function (mod) {
                 ? `<a class="footer__copy-link" href="${url}" target="_blank" rel="noopener noreferrer">${text}</a>`
                 : `<span class="footer__copy-text">${text}</span>`);
         });
+        // 免责声明：紧跟版权文字末尾，悬停/聚焦/点击展示全文
+        if (disclaimer) {
+            parts.push(`<span class="footer__disclaimer" id="footerDisclaimer">
+                <span class="footer__disclaimer-trigger" tabindex="0" role="button" aria-expanded="false">免责声明</span>
+                <span class="footer__disclaimer-tip" role="tooltip">${esc(disclaimer)}</span>
+            </span>`);
+        }
         return `
 <footer class="footer" id="footer" data-module="footer">
     <div class="footer__inner">
@@ -342,11 +349,6 @@ window.CMS.registerModule('hero', function (mod) {
             ${links.map(l => `<a href="${safeUrl(l.url, 'link') || '#'}" target="_blank" rel="noopener noreferrer">${esc(l.name)}</a>`).join('')}
         </div>
         <p class="footer__copy">${parts.join('<span class="footer__copy-sep"> · </span>')}</p>
-        ${disclaimer ? `
-        <p class="footer__disclaimer" id="footerDisclaimer">
-            <span class="footer__disclaimer-trigger" tabindex="0" role="button" aria-expanded="false">免责声明</span>
-            <span class="footer__disclaimer-tip" role="tooltip">${esc(disclaimer)}</span>
-        </p>` : ''}
     </div>
 </footer>`;
     }, { nav: { href: '#footer', text: '联系' } });

@@ -915,13 +915,13 @@ a {
     color: var(--fg-20);
 }
 
-/** 免责声明：悬停/聚焦/点击展开全文 */
+/** 免责声明：悬停/聚焦/点击展开全文（内联于版权行末尾） */
 .footer__disclaimer {
     position: relative;
     display: inline-block;
-    margin: 1rem 0 0;
-    font-size: 0.8rem;
-    line-height: 1.5;
+    margin: 0;
+    font-size: inherit;
+    line-height: inherit;
     text-align: left;
 }
 .footer__disclaimer-trigger {
