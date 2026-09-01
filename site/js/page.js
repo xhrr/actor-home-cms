@@ -23,6 +23,9 @@
         `;
     }
 
+    let worksFilterQuery = '';
+    let worksActiveCat = null;
+
     function renderWorks() {
         const works = C.works || {};
         const categories = Array.isArray(works.categories) && works.categories.length
@@ -32,6 +35,10 @@
             <div class="works-filter" id="works-filter">
                 <button type="button" class="works-filter__link active" data-filter="">全部</button>
                 ${categories.map((cat, ci) => `<button type="button" class="works-filter__link" data-filter="${ci}">${esc(cat.name || '')}</button>`).join('')}
+            </div>
+            <div class="page-search">
+                <input type="search" id="works-search-input" placeholder="搜索作品标题 / 角色 / 导演 / 类型…" autocomplete="off">
+                <span class="page-search__count" id="works-search-count"></span>
             </div>
             <div id="works-category-results"></div>
         `;
@@ -43,11 +50,18 @@
                 if (!btn) return;
                 Array.prototype.forEach.call(filter.querySelectorAll('.works-filter__link'), b => b.classList.remove('active'));
                 btn.classList.add('active');
-                const val = btn.dataset.filter;
-                renderWorksResults(val === '' ? null : parseInt(val, 10));
+                worksActiveCat = btn.dataset.filter === '' ? null : parseInt(btn.dataset.filter, 10);
+                renderWorksResults(worksActiveCat);
             });
         }
-        renderWorksResults(null);
+        const input = document.getElementById('works-search-input');
+        if (input) {
+            input.addEventListener('input', () => {
+                worksFilterQuery = input.value.trim();
+                renderWorksResults(worksActiveCat);
+            });
+        }
+        renderWorksResults(worksActiveCat);
     }
 
     function renderWorksResults(selectedCat) {
@@ -58,12 +72,19 @@
         const container = document.getElementById('works-category-results');
         if (!container) return;
 
+        const q = worksFilterQuery.trim().toLowerCase();
+        const match = (item, catName) => !q || [item.title, item.role, item.director, item.type, item.year, item.releaseDate, item.synopsis, catName]
+            .some(f => String(f || '').toLowerCase().includes(q));
+
         const list = selectedCat === null ? categories : categories.filter((_, i) => i === selectedCat);
+        let totalShown = 0;
         container.innerHTML = list.map((cat, ci) => {
-            // 分类内按上映时间降序排序（保留原始索引，保证图集链接正确）
+            // 先按搜索词过滤（保留原始索引，保证图集链接正确），再按上映时间降序排序
             const items = (cat.items || []).map((item, ii) => ({ item, ii }))
+                .filter(x => match(x.item, cat.name))
                 .sort((a, b) => U.parseTime(b.item.year || b.item.releaseDate) - U.parseTime(a.item.year || a.item.releaseDate));
             if (!items.length) return '';
+            totalShown += items.length;
             const realCi = selectedCat === null ? ci : selectedCat;
 
             const renderItem = ({ item, ii }, idx) => {
@@ -94,7 +115,13 @@
                     </div>
                 </div>
             `;
-        }).join('') || '<p>暂未添加作品</p>';
+        }).join('') || '<p class="works-empty">未找到匹配的作品</p>';
+
+        const countEl = document.getElementById('works-search-count');
+        if (countEl) {
+            const total = categories.reduce((n, c) => n + (c.items || []).length, 0);
+            countEl.textContent = q ? (totalShown + ' / ' + total + ' 条') : '';
+        }
 
         // 动态插入的内容直接显示，避免被滚动动画默认隐藏
         Array.prototype.forEach.call(container.querySelectorAll('.work-item, .works-category__title, .section__head'), el => {

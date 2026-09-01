@@ -120,23 +120,28 @@
 
     /* ---------- 写真集列表 ---------- */
 
-    function renderList() {
-        if (top) {
-            top.innerHTML = `
-                <p class="gallery-page__eyebrow">GALLERY</p>
-                <h1 class="gallery-page__title">${esc(gallery.heading || '写真')}</h1>
-                <p class="gallery-page__desc">共 ${albums.length} 个写真集</p>
-            `;
-        }
+    let gallerySearchQuery = '';
 
+    function renderAlbumCards() {
+        const q = gallerySearchQuery.trim().toLowerCase();
+        const match = a => !q || [a.title, a.author].some(f => String(f || '').toLowerCase().includes(q));
+        // 新增的在前，保留原索引：卡片链接 ?album= 必须是 gallery.albums 的真实下标
+        const shown = albums.map((a, idx) => ({ a, idx })).reverse().filter(x => match(x.a));
+
+        const countEl = document.getElementById('gallery-search-count');
+        if (countEl) countEl.textContent = q ? (shown.length + ' / ' + albums.length + ' 个写真集') : '';
+
+        if (q && !shown.length) {
+            grid.innerHTML = '<p class="gallery-page__empty">未找到匹配的写真集</p>';
+            return;
+        }
         if (!albums.length) {
             grid.innerHTML = '<p class="gallery-page__empty">暂无写真集</p>';
             return;
         }
-
         grid.innerHTML = `
             <div class="gallery__albums">
-                ${albums.map((album, ai) => {
+                ${shown.map(({ a: album, idx: ai }) => {
                     const cover = safeUrl(album.cover || (album.images && album.images[0]), 'image');
                     return `
                         <a class="album-card" href="/gallery.html?album=${ai}">
@@ -153,6 +158,28 @@
                 }).join('')}
             </div>
         `;
+    }
+
+    function renderList() {
+        if (top) {
+            top.innerHTML = `
+                <p class="gallery-page__eyebrow">GALLERY</p>
+                <h1 class="gallery-page__title">${esc(gallery.heading || '写真')}</h1>
+                <p class="gallery-page__desc">共 ${albums.length} 个写真集</p>
+                <div class="page-search">
+                    <input type="search" id="gallery-search-input" placeholder="搜索写真集标题 / 作者…" autocomplete="off">
+                    <span class="page-search__count" id="gallery-search-count"></span>
+                </div>
+            `;
+        }
+        renderAlbumCards();
+        const input = document.getElementById('gallery-search-input');
+        if (input) {
+            input.addEventListener('input', () => {
+                gallerySearchQuery = input.value;
+                renderAlbumCards();
+            });
+        }
     }
 
     /* ---------- 写真集详情 ---------- */

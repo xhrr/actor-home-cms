@@ -14,7 +14,8 @@ const TYPE_ALIASES = {
 };
 
 function parseIssueBody(body) {
-    const data = {};
+    const blocks = [];
+    let data = null;
     let listKey = null;
     const lines = String(body || '').split(/\r?\n/);
 
@@ -39,6 +40,14 @@ function parseIssueBody(body) {
 
         const key = kv[1].trim().toLowerCase();
         const value = kv[2].trim();
+
+        // 多内容块：已有一个带 type 的块时，遇到新的 "type:" 开新块（一条 issue 可含多条内容）
+        if (key === 'type' && data && data.type) {
+            blocks.push(data);
+            data = null;
+            listKey = null;
+        }
+        if (!data) data = {};
 
         if (key === 'title') {
             // 多行标题：把后续连续的文本行并入标题（空格连接）；遇到下一个键值对/列表项/URL/空行即停；
@@ -68,12 +77,10 @@ function parseIssueBody(body) {
             data[key] = value;
         }
     }
-
-    if (!data.type) {
-        // 兼容“标题：新增作品：xxx”这种写法
-        return data;
-    }
-    return data;
+    if (data) blocks.push(data);
+    if (!blocks.length) blocks.push({});
+    // 单块保持历史返回形态（对象），多块返回数组
+    return blocks.length === 1 ? blocks[0] : blocks;
 }
 
 function normalizeType(type) {
@@ -240,21 +247,39 @@ async function checkIssues(ctx) {
         if (processed.includes(issue.number)) continue;
 
         try {
-            const parsed = parseIssueBody(issue.body);
-            parsed.type = normalizeType(parsed.type || issue.title.match(/新增(作品|写真|动态|荣誉|行程)[:：]?\s*(.*)/)?.[1] || '');
-            if (!parsed.type) {
+            const raw = parseIssueBody(issue.body);
+            const entries = Array.isArray(raw) ? raw : [raw];
+            const entryMsgs = [];
+            let okAny = false;
+            for (const p of entries) {
+                try {
+                    // 单块时保留标题兜底识别（新增作品/写真/…）；多块各块必须自带 type
+                    if (!p.type && entries.length === 1) {
+                        p.type = issue.title.match(/新增(作品|写真|动态|荣誉|行程)[:：]?\s*(.*)/)?.[1] || '';
+                    }
+                    p.type = normalizeType(p.type) || '';
+                    if (!p.type) {
+                        entryMsgs.push('（缺少 type，已跳过）');
+                        continue;
+                    }
+                    const c = core.readConfig();
+                    const message = applyIssueToConfig(c, p);
+                    core.writeConfig(c);
+                    okAny = true;
+                    entryMsgs.push(message);
+                } catch (e2) {
+                    entryMsgs.push('❌ ' + (e2.message || '处理失败'));
+                }
+            }
+            if (!okAny) {
                 messages.push(`#${issue.number} 无法识别类型，已跳过`);
                 continue;
             }
-
-            const c = core.readConfig();
-            const message = applyIssueToConfig(c, parsed);
-            core.writeConfig(c);
-
             processed.push(issue.number);
-            await commentAndClose(repo, token, issue.number, `✅ ${message}\n\n已自动更新并关闭。`);
+            const combined = entryMsgs.filter(Boolean).join('\n');
+            await commentAndClose(repo, token, issue.number, `✅ ${combined}\n\n已自动更新并关闭。`);
             updated++;
-            messages.push(`#${issue.number} ${message}`);
+            messages.push(`#${issue.number} ${combined.split('\n').join('；')}`);
         } catch (e) {
             messages.push(`#${issue.number} 处理失败: ${e.message}`);
             await commentAndClose(repo, token, issue.number, `❌ 处理失败：${e.message}`);

@@ -1738,3 +1738,47 @@ a {
         }
     }
 }
+
+/* ===================================================================
+   页面搜索框（作品页 / 图集列表页）
+   =================================================================== */
+.page-search {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    max-width: var(--container);
+    margin-top: 1.5rem;
+    margin-bottom: 2.5rem;
+}
+.page-search input {
+    flex: 0 1 420px;
+    max-width: 420px;
+    min-width: 0;
+    padding: 0.5rem 0;
+    border: none;
+    border-bottom: 1px solid var(--fg-20);
+    background: transparent;
+    font-family: var(--font-sans);
+    font-size: 0.95rem;
+    color: var(--fg);
+    transition: border-color 0.3s;
+    -webkit-appearance: none;
+    appearance: none;
+    border-radius: 0;
+}
+.page-search input::placeholder {
+    color: var(--fg-40);
+}
+.page-search input:focus {
+    outline: none;
+    border-bottom-color: var(--fg-60);
+}
+.page-search__count {
+    flex-shrink: 0;
+    font-size: 0.75rem;
+    color: var(--fg-40);
+}
+.works-empty {
+    padding: 2rem 0;
+    color: var(--fg-40);
+}

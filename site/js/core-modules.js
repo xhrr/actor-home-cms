@@ -169,14 +169,14 @@ window.CMS.registerModule('hero', function (mod) {
         if (!mod || mod.visible === false) return '';
         const label = mod.label || '写真';
         const layout = normalizeChoice(mod.layout, ['grid', 'wide', 'single'], 'grid');
-        const limit = mod.limit || 3;
+        const limit = mod.limit || 8; // 首页写真集封面默认展示 8 个（后台模块管理可覆盖）
         const gallery = C.gallery || { albums: [] };
         const albums = Array.isArray(gallery.albums) ? gallery.albums : [];
         const isPrimaryImages = C.modules.findIndex(m => m.type === 'images') === C.modules.indexOf(mod);
 
-        // 主写真模块：展示写真集封面
+        // 主写真模块：展示写真集封面（新增的在前，保留原索引保证 ?album= 链接正确）
         if (isPrimaryImages && albums.length) {
-            const shown = albums.slice(0, limit);
+            const shown = albums.map((a, i) => ({ a, i })).reverse().slice(0, limit);
             return `
 <section class="section gallery" id="gallery" data-module="images">
     <div class="section__head">
@@ -184,7 +184,7 @@ window.CMS.registerModule('hero', function (mod) {
         <h2 class="section__title">${esc(gallery.heading || label)}</h2>
     </div>
     <div class="gallery__albums">
-        ${shown.map((album, ai) => {
+        ${shown.map(({ a: album, i: ai }) => {
             const cover = safeUrl(album.cover || (album.images && album.images[0]), 'image');
             return `
                 <a class="album-card" href="/gallery.html?album=${ai}">
