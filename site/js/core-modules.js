@@ -19,9 +19,11 @@ window.CMS.registerModule('hero', function (mod) {
         const name = esc(actor.name || 'Actor');
         const nameEn = esc(actor.nameEn || '');
         const tagline = esc(actor.tagline || actor.title || '');
-        // 移动端专属图：竖屏/横屏各可取一张（≤640px 时按方向切换显示）
-        const por = safeUrl((mod.imagesMobilePortrait && mod.imagesMobilePortrait[0]) || '', 'image');
-        const land = safeUrl((mod.imagesMobileLandscape && mod.imagesMobileLandscape[0]) || '', 'image');
+        // 移动端专属图：竖屏/横屏各可取一张（≤960px 时按方向切换显示；只配一张时两方向复用）
+        let por = safeUrl((mod.imagesMobilePortrait && mod.imagesMobilePortrait[0]) || '', 'image');
+        let land = safeUrl((mod.imagesMobileLandscape && mod.imagesMobileLandscape[0]) || '', 'image');
+        if (por && !land) land = por;
+        if (land && !por) por = land;
         const hasMobile = !!(por || land);
         return `
 <section class="hero${hasMobile ? ' has-mobile-imgs' : ''}" id="hero" data-module="hero">
@@ -30,8 +32,8 @@ window.CMS.registerModule('hero', function (mod) {
     </div>
     ${hasMobile ? `
     <div class="hero__mobile" aria-hidden="true">
-        ${por ? `<img class="mobile-por" src="${por}" alt="${name}" loading="lazy" decoding="async">` : ''}
-        ${land ? `<img class="mobile-land" src="${land}" alt="${name}" loading="lazy" decoding="async">` : ''}
+        ${por ? `<img class="mobile-por" src="${por}" alt="${name}" loading="lazy" decoding="async" onerror="this.style.display='none'">` : ''}
+        ${land ? `<img class="mobile-land" src="${land}" alt="${name}" loading="lazy" decoding="async" onerror="this.style.display='none'">` : ''}
     </div>` : ''}
     <div class="hero__content">
         <p class="hero__eyebrow">${nameEn}</p>
@@ -48,8 +50,10 @@ window.CMS.registerModule('hero', function (mod) {
         const name = esc(actor.name || 'Actor');
         const nameEn = esc(actor.nameEn || '');
         const tagline = esc(actor.tagline || actor.title || '');
-        const por = safeUrl((mod.imagesMobilePortrait && mod.imagesMobilePortrait[0]) || '', 'image');
-        const land = safeUrl((mod.imagesMobileLandscape && mod.imagesMobileLandscape[0]) || '', 'image');
+        let por = safeUrl((mod.imagesMobilePortrait && mod.imagesMobilePortrait[0]) || '', 'image');
+        let land = safeUrl((mod.imagesMobileLandscape && mod.imagesMobileLandscape[0]) || '', 'image');
+        if (por && !land) land = por;
+        if (land && !por) por = land;
         const hasMobile = !!(por || land);
         return `
 <section class="hero-split${hasMobile ? ' has-mobile-imgs' : ''}" id="hero-split" data-module="hero-split" data-hero-split>
@@ -63,8 +67,8 @@ window.CMS.registerModule('hero', function (mod) {
     </div>
     ${hasMobile ? `
     <div class="hero-split__mobile" aria-hidden="true">
-        ${por ? `<img class="mobile-por" src="${por}" alt="${name}" loading="lazy" decoding="async">` : ''}
-        ${land ? `<img class="mobile-land" src="${land}" alt="${name}" loading="lazy" decoding="async">` : ''}
+        ${por ? `<img class="mobile-por" src="${por}" alt="${name}" loading="lazy" decoding="async" onerror="this.style.display='none'">` : ''}
+        ${land ? `<img class="mobile-land" src="${land}" alt="${name}" loading="lazy" decoding="async" onerror="this.style.display='none'">` : ''}
     </div>` : ''}
     <div class="hero-split__content">
         <p class="hero-split__eyebrow">${nameEn}</p>

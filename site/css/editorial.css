@@ -1705,7 +1705,8 @@ a {
         rgba(249, 248, 246, 0) 58%);
 }
 
-@media (max-width: 640px) {
+/* 临时调整（未推送）：移动端断点 640 → 960px，待评估后改回 */
+@media (max-width: 960px) {
     .hero.has-mobile-imgs .hero__media,
     .hero-split.has-mobile-imgs .hero-split__columns {
         display: none;
