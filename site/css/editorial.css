@@ -315,7 +315,12 @@ a {
     letter-spacing: -0.04em;
     line-height: 0.9;
     color: var(--fg);
-    text-shadow: 0 1px 2px rgba(249, 248, 246, 0.92), 0 0 16px rgba(249, 248, 246, 0.65);
+    /* B 错版印刷叠影：2px 深浅双印（深印为主，米色淡印辅助）+ 光晕 */
+    text-shadow:
+        2px 2px 0 rgba(28, 28, 28, 0.2),
+        -2px -2px 0 rgba(28, 28, 28, 0.1),
+        0 1px 2px rgba(249, 248, 246, 0.92),
+        0 0 18px rgba(249, 248, 246, 0.7);
 }
 
 .hero__subtitle {
@@ -1191,7 +1196,12 @@ a {
     letter-spacing: -0.04em;
     line-height: 0.9;
     color: var(--fg);
-    text-shadow: 0 1px 2px rgba(249, 248, 246, 0.92), 0 0 16px rgba(249, 248, 246, 0.65);
+    /* B 错版印刷叠影：2px 深浅双印（深印为主，米色淡印辅助）+ 光晕 */
+    text-shadow:
+        2px 2px 0 rgba(28, 28, 28, 0.2),
+        -2px -2px 0 rgba(28, 28, 28, 0.1),
+        0 1px 2px rgba(249, 248, 246, 0.92),
+        0 0 18px rgba(249, 248, 246, 0.7);
 }
 
 .hero-split__subtitle {
