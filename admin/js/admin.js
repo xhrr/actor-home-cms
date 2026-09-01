@@ -101,7 +101,26 @@
         if (heroEnabledInput) heroEnabledInput.checked = !!heroEnabled;
         $('#hero-image').value = hero.image || '';
         $('#hero-split-images').value = (splitMod && splitMod.images || []).join('\n');
+        // 移动端专属图：按当前模式回填对应模块的配置
+        const activeMod = mode === 'split' ? (splitMod || {}) : (heroMod || {});
+        const por = $('#hero-mobile-portrait');
+        const land = $('#hero-mobile-landscape');
+        if (por) por.value = (activeMod.imagesMobilePortrait || []).join('\n');
+        if (land) land.value = (activeMod.imagesMobileLandscape || []).join('\n');
         toggleHeroSplitFields();
+    }
+
+    // 移动端专属图写入当前活动模块（hero / hero-split）
+    function applyHeroMobileFields() {
+        const mode = config.hero && config.hero.mode || 'classic';
+        const mod = findModule(mode === 'split' ? 'hero-split' : 'hero');
+        if (!mod) return;
+        const por = $('#hero-mobile-portrait');
+        const land = $('#hero-mobile-landscape');
+        if (!por || !land) return;
+        const parse = v => v.split('\n').map(s => s.trim()).filter(Boolean);
+        mod.imagesMobilePortrait = parse(por.value);
+        mod.imagesMobileLandscape = parse(land.value);
     }
 
     function toggleHeroSplitFields() {
@@ -640,7 +659,7 @@
 
     const SECTION_SAVERS = {
         actor:    { sections: ['actor'], collect: collectActor },
-        hero:     { sections: ['hero'], modules: true, collect: function () { collectHero(); if (applyHeroMode()) renderModules(); } },
+        hero:     { sections: ['hero'], modules: true, collect: function () { collectHero(); if (applyHeroMode()) renderModules(); applyHeroMobileFields(); } },
         works:    { sections: ['works'], modules: true, collect: collectWorks },
         gallery:  { sections: ['gallery'], modules: true, collect: collectGallery },
         news:     { plugin: 'actor-news', modules: true, collect: collectNews },

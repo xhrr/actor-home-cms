@@ -19,11 +19,20 @@ window.CMS.registerModule('hero', function (mod) {
         const name = esc(actor.name || 'Actor');
         const nameEn = esc(actor.nameEn || '');
         const tagline = esc(actor.tagline || actor.title || '');
+        // 移动端专属图：竖屏/横屏各可取一张（≤640px 时按方向切换显示）
+        const por = safeUrl((mod.imagesMobilePortrait && mod.imagesMobilePortrait[0]) || '', 'image');
+        const land = safeUrl((mod.imagesMobileLandscape && mod.imagesMobileLandscape[0]) || '', 'image');
+        const hasMobile = !!(por || land);
         return `
-<section class="hero" id="hero" data-module="hero">
+<section class="hero${hasMobile ? ' has-mobile-imgs' : ''}" id="hero" data-module="hero">
     <div class="hero__media">
         <img src="${img}" alt="${name}" onerror="this.parentElement.classList.add('is-empty')">
     </div>
+    ${hasMobile ? `
+    <div class="hero__mobile" aria-hidden="true">
+        ${por ? `<img class="mobile-por" src="${por}" alt="${name}" loading="lazy" decoding="async">` : ''}
+        ${land ? `<img class="mobile-land" src="${land}" alt="${name}" loading="lazy" decoding="async">` : ''}
+    </div>` : ''}
     <div class="hero__content">
         <p class="hero__eyebrow">${nameEn}</p>
         <h1 class="hero__title">${name}</h1>
@@ -39,8 +48,11 @@ window.CMS.registerModule('hero', function (mod) {
         const name = esc(actor.name || 'Actor');
         const nameEn = esc(actor.nameEn || '');
         const tagline = esc(actor.tagline || actor.title || '');
+        const por = safeUrl((mod.imagesMobilePortrait && mod.imagesMobilePortrait[0]) || '', 'image');
+        const land = safeUrl((mod.imagesMobileLandscape && mod.imagesMobileLandscape[0]) || '', 'image');
+        const hasMobile = !!(por || land);
         return `
-<section class="hero-split" id="hero-split" data-module="hero-split" data-hero-split>
+<section class="hero-split${hasMobile ? ' has-mobile-imgs' : ''}" id="hero-split" data-module="hero-split" data-hero-split>
     <div class="hero-split__columns">
         ${images.map((img, i) => `
             <div class="split-col${i === 0 ? ' is-active' : ''}" data-split-index="${i}">
@@ -49,6 +61,11 @@ window.CMS.registerModule('hero', function (mod) {
             </div>
         `).join('')}
     </div>
+    ${hasMobile ? `
+    <div class="hero-split__mobile" aria-hidden="true">
+        ${por ? `<img class="mobile-por" src="${por}" alt="${name}" loading="lazy" decoding="async">` : ''}
+        ${land ? `<img class="mobile-land" src="${land}" alt="${name}" loading="lazy" decoding="async">` : ''}
+    </div>` : ''}
     <div class="hero-split__content">
         <p class="hero-split__eyebrow">${nameEn}</p>
         <h1 class="hero-split__title">${name}</h1>

@@ -1663,3 +1663,67 @@ a {
 .work-detail__source {
     margin: 1rem 0 0;
 }
+
+/* ===================================================================
+   Hero 移动端适配：可配置竖屏/横屏专属图（≤640px 按方向切换）
+   =================================================================== */
+
+.hero__mobile,
+.hero-split__mobile {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: none;
+    overflow: hidden;
+}
+.hero__mobile img,
+.hero-split__mobile img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.hero__mobile .mobile-por,
+.hero__mobile .mobile-land,
+.hero-split__mobile .mobile-por,
+.hero-split__mobile .mobile-land {
+    display: none;
+}
+/* 文字可读性：底部米色淡入（与桌面 fade 同款柔化曲线） */
+.hero__mobile::after,
+.hero-split__mobile::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top,
+        rgba(249, 248, 246, 0.92) 0%,
+        rgba(249, 248, 246, 0.78) 8%,
+        rgba(249, 248, 246, 0.55) 18%,
+        rgba(249, 248, 246, 0.3) 32%,
+        rgba(249, 248, 246, 0.12) 45%,
+        rgba(249, 248, 246, 0) 58%);
+}
+
+@media (max-width: 640px) {
+    .hero.has-mobile-imgs .hero__media,
+    .hero-split.has-mobile-imgs .hero-split__columns {
+        display: none;
+    }
+    .hero.has-mobile-imgs .hero__mobile,
+    .hero-split.has-mobile-imgs .hero-split__mobile {
+        display: block;
+    }
+    @media (orientation: portrait) {
+        .hero__mobile .mobile-por,
+        .hero-split__mobile .mobile-por {
+            display: block;
+        }
+    }
+    @media (orientation: landscape) {
+        .hero__mobile .mobile-land,
+        .hero-split__mobile .mobile-land {
+            display: block;
+        }
+    }
+}
