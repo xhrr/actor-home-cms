@@ -148,11 +148,11 @@ window.CMS.registerModule('hero', function (mod) {
             return `
             <article class="work-item" data-index="${ci}-${ii}">
                 <div class="work-item__num">${num}</div>
-                <a class="work-item__media" href="/gallery.html?cat=${ci}&work=${ii}">
+                <div class="work-item__media">
                     <img src="${poster}" alt="${esc(item.title)}" loading="lazy" onerror="this.parentElement.classList.add('is-empty')">
-                </a>
+                </div>
                 <div class="work-item__info">
-                    <h3 class="work-item__title">${esc(item.title)}</h3>
+                    <h3 class="work-item__title"><a class="work-item__link" href="/gallery.html?cat=${ci}&work=${ii}">${esc(item.title)}</a></h3>
                     <p class="work-item__meta">${esc(cat.name || item.type || '')} · ${esc(U.formatTime(item.year || item.releaseDate))} · ${esc(item.director || '')}</p>
                     <p class="work-item__role">饰演 ${esc(item.role || '')}</p>
                     <p class="work-item__synopsis">${esc(item.synopsis || '')}</p>

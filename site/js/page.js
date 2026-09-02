@@ -93,11 +93,11 @@
                 return `
                             <article class="work-item">
                                 <div class="work-item__num">${String(idx + 1).padStart(2, '0')}</div>
-                                <a class="work-item__media" href="/gallery.html?cat=${realCi}&work=${ii}">
+                                <div class="work-item__media">
                                     <img src="${poster}" alt="${esc(item.title)}" loading="lazy" onerror="this.parentElement.classList.add('is-empty')" onload="this.closest('.work-item__media').classList.toggle('is-portrait', this.naturalHeight > this.naturalWidth)">
-                                </a>
+                                </div>
                                 <div class="work-item__info">
-                                    <h3 class="work-item__title">${esc(item.title)}</h3>
+                                    <h3 class="work-item__title"><a class="work-item__link" href="/gallery.html?cat=${realCi}&work=${ii}">${esc(item.title)}</a></h3>
                                     <p class="work-item__meta">${esc(cat.name || item.type || '')} · ${esc(U.formatTime(item.year || item.releaseDate))} · ${esc(item.director || '')}</p>
                                     <p class="work-item__role">饰演 ${esc(item.role || '')}</p>
                                     <p class="work-item__synopsis">${esc(item.synopsis || '')}</p>

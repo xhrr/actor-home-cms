@@ -508,7 +508,7 @@ a {
     letter-spacing: -0.03em;
     line-height: 1.05;
     transition: font-style 0.4s ease;
-    position: relative;
+    /* 注意：不要给 title 设 position，否则 .work-item__link::after 的整卡遮罩会以标题为锚 */
     display: inline-block;
 }
 
@@ -685,6 +685,42 @@ a {
 .work-item__source {
     margin: 0.5rem 0 0;
     font-size: 0.8rem;
+}
+
+/* 整卡可点（stretched link）：标题链接的透明遮罩铺满整张卡片，
+   点击图片 / 编号 / 标题 / 简介任意位置都跳转作品剧照详情；
+   “原始链接”保持独立可点，不会被遮罩拦截。 */
+.work-item {
+    position: relative;
+    cursor: pointer;
+}
+
+.work-item__link {
+    color: inherit;
+    text-decoration: none;
+    outline-offset: 3px;
+}
+
+.work-item__link::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+}
+
+.work-item__source {
+    position: relative;
+    z-index: 1;
+}
+
+/* 交错布局的编号角标盖在图片上：点击穿透到整卡遮罩（视觉不变） */
+.works__list--feature .work-item__num {
+    pointer-events: none;
+}
+
+/* 键盘聚焦标题链接时给出整卡轮廓 */
+.work-item:focus-within {
+    outline: 1px solid var(--fg-40);
+    outline-offset: -1px;
 }
 
 /* ===================================================================
