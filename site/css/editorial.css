@@ -995,6 +995,98 @@ a {
     visibility: visible;
 }
 
+/** 制作组弹窗：悬停/聚焦「©杉果派」展开成员名单；点击仍照常跳转杉果派主页（与免责声明同交互体系） */
+.footer__credits {
+    position: relative;
+    display: inline-block;
+    margin: 0;
+    font-size: inherit;
+    line-height: inherit;
+    text-align: left;
+}
+/* hover 桥：鼠标从「©杉果派」移向弹窗时跨越中间间隙不中断，
+   保证弹窗保持展开、成员链接可点（间隙本身属于弹窗与文字的视觉留白） */
+.footer__credits::before {
+    content: "";
+    position: absolute;
+    bottom: 100%;
+    left: -10px;
+    right: -10px;
+    height: 14px;
+}
+.footer__credits-trigger {
+    cursor: pointer;
+    color: var(--fg-40);
+    padding-bottom: 0.15rem;
+    border-bottom: 1px dashed var(--fg-20);
+    transition: color 0.3s, border-color 0.3s;
+}
+.footer__credits-trigger:hover,
+.footer__credits-trigger:focus-visible {
+    color: var(--fg);
+    border-bottom-color: var(--fg-60);
+    outline: none;
+}
+.footer__credits-popup {
+    position: absolute;
+    bottom: calc(100% + 12px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 45;
+    width: max-content;
+    max-width: min(460px, 86vw);
+    padding: 0.85rem 1.1rem; /* 与免责声明弹层一致的版面 */
+    background: var(--bg);
+    border: 1px solid var(--fg-20);
+    color: var(--fg-60);
+    font-size: 0.78rem;
+    line-height: 1.75;
+    text-align: left;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.18s ease, visibility 0.18s ease;
+}
+.footer__credits:hover .footer__credits-popup,
+.footer__credits:focus-within .footer__credits-popup {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+}
+.footer__credits-title {
+    display: block;
+    margin-bottom: 0.35rem;
+    font-family: var(--font-sans);
+    font-size: 0.72rem;
+    font-weight: 400;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--fg-40);
+}
+.footer__credits-list {
+    display: block;
+}
+.footer__credits-member {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    padding: 0.1rem 0;
+    white-space: nowrap;
+}
+.footer__credits-name {
+    color: var(--fg-60);
+    border-bottom: 1px solid transparent;
+    transition: color 0.3s, border-color 0.3s;
+}
+a.footer__credits-name:hover {
+    color: var(--fg-40);
+    border-bottom-color: var(--fg-40);
+}
+.footer__credits-role {
+    color: var(--fg-40);
+    font-size: 0.75rem;
+}
+
 /* ===================================================================
    响应式
    =================================================================== */

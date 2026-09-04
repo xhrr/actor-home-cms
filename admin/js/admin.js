@@ -147,11 +147,27 @@
                 <input type="text" data-footer-link-text="${i}" value="${window.AdminCMS.esc(link.text || '')}" placeholder="显示文字" ${fixed ? 'readonly' : ''}>
                 <input type="text" data-footer-link-url="${i}" value="${window.AdminCMS.esc(link.url || '')}" placeholder="https://... 跳转链接" ${fixed ? 'readonly' : ''}>
                 ${fixed
-                    ? '<span class="fixed-badge" title="固定版权声明：©杉果派 → 抖音">固定</span>'
+                    ? '<span class="fixed-badge" title="固定版权声明：©杉果派 → 悬停弹制作组，点击跳抖音">固定</span>'
                     : `<button class="btn--danger" data-remove-footer-link="${i}" title="删除版权链接">×</button>`}
             </div>
         `;
         }).join('');
+
+        // 制作组成员（悬停「©杉果派」弹出）
+        const credits = footer.credits || { members: [] };
+        const creditsTitleInput = $('#footer-credits-title');
+        if (creditsTitleInput) creditsTitleInput.value = credits.title || '制作组';
+        const creditsList = $('#footer-credits-list');
+        if (creditsList) {
+            creditsList.innerHTML = (Array.isArray(credits.members) ? credits.members : []).map((m, i) => `
+                <div class="list-item credit-member-item" data-index="${i}">
+                    <input type="text" data-credit-name="${i}" value="${window.AdminCMS.esc((m && m.name) || '')}" placeholder="姓名">
+                    <input type="text" data-credit-role="${i}" value="${window.AdminCMS.esc((m && m.role) || '')}" placeholder="职务/角色">
+                    <input type="text" data-credit-link="${i}" value="${window.AdminCMS.esc((m && m.link) || '')}" placeholder="https://... 个人主页（可选）">
+                    <button class="btn--danger" data-remove-credit="${i}" title="删除成员">×</button>
+                </div>
+            `).join('');
+        }
     }
 
     function renderWorks() {
@@ -877,6 +893,22 @@
         const filtered = links.filter(l => !(l.text === FIXED_FOOTER_LINK.text && l.url === FIXED_FOOTER_LINK.url));
         filtered.push({ ...FIXED_FOOTER_LINK });
         config.footer.links = filtered;
+
+        // 制作组成员（悬停「©杉果派」弹出）
+        const members = [];
+        document.querySelectorAll('#footer-credits-list .credit-member-item').forEach(item => {
+            const i = item.dataset.index;
+            const name = item.querySelector(`[data-credit-name="${i}"]`).value.trim();
+            const role = item.querySelector(`[data-credit-role="${i}"]`).value.trim();
+            const link = item.querySelector(`[data-credit-link="${i}"]`).value.trim();
+            if (!name && !role && !link) return;
+            members.push({ name, role, link });
+        });
+        const creditsTitleInput = $('#footer-credits-title');
+        config.footer.credits = {
+            title: (creditsTitleInput ? creditsTitleInput.value.trim() : '') || '制作组',
+            members
+        };
     }
 
     function collectGallery() {
@@ -1190,7 +1222,7 @@
                 <div class="media-item${img.remote ? ' media-item--remote' : ''}">
                     <img src="${img.url}" alt="媒体" loading="lazy">
                     <button class="media-item__copy" data-copy="${window.AdminCMS.esc(img.url)}" title="复制链接">⧉</button>
-                    <button class="media-item__delete" data-delete="${img.remote ? 'remote/' + encodeURIComponent(img.id) : encodeURIComponent(img.filename)}" title="删除">×</button>
+                    <button class="media-item__delete" data-delete="${img.remote ? 'remote/' + encodeURIComponent(img.id) : encodeURIComponent(img.filename)}" ${img.remote ? `data-remote-url="${window.AdminCMS.esc(img.url)}"` : ''} title="${img.remote ? '从 R2 存储桶删除（不可恢复）' : '删除'}">×</button>
                     <span class="media-item__url"><span class="media-item__tag">${img.remote ? 'R2' : '本地'}</span>${img.url}</span>
                 </div>
             `).join('') || '<p>暂无图片，点击右上角上传。</p>';
@@ -1253,6 +1285,30 @@
                 }
                 const btn = e.target.closest('[data-delete]');
                 if (!btn) return;
+                // R2 远程照片：真删存储桶对象（不可恢复），成功后媒体库登记一并清理
+                const remoteUrl = btn.dataset.remoteUrl;
+                if (remoteUrl) {
+                    if (!window.confirm('确定从 R2 存储桶删除该照片吗？此操作不可恢复，图片外链将失效。')) return;
+                    try {
+                        const res = await fetch('/api/plugins/cloudflare-r2/delete', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ url: remoteUrl })
+                        });
+                        const data = await res.json();
+                        if (data && data.success) {
+                            showToast('✅ 已从 R2 存储桶删除');
+                        } else {
+                            const errMsg = data && data.results && data.results[0] && data.results[0].error;
+                            showToast(errMsg || '删除失败', true);
+                        }
+                    } catch (err) {
+                        console.error('delete error', err);
+                        showToast('删除失败：' + err.message, true);
+                    }
+                    await renderMedia();
+                    return;
+                }
                 try {
                     await fetch('/api/images/' + btn.dataset.delete, { method: 'DELETE' });
                     await renderMedia();
@@ -1501,6 +1557,7 @@
             add('行程公告', 'schedule-ann', ((config.plugins && config.plugins.data['actor-schedule'] || {}).announcements || []).map((it, i) => ({ key: String(i), disp: (it.month ? it.month + '月' : '') + ' ' + (it.text || '').slice(0, 40) })));
             add('社交链接', 'social', (config.social && config.social.links || []).map((it, i) => ({ key: String(i), disp: it.name || it.url || '' })));
             add('版权链接', 'footer', ((config.footer && config.footer.links) || []).map((it, i) => ({ key: String(i), disp: it.text + ' ' + (it.url || '') })));
+            add('制作组', 'footer-credits', ((config.footer && config.footer.credits && config.footer.credits.members) || []).map((it, i) => ({ key: String(i), disp: (it.name || '') + ' ' + (it.role || '') })));
             const mods = [];
             (config.modules || []).forEach((m, i) => { if (m.type) mods.push({ key: String(i), disp: '模块 ' + m.type }); });
             add('模块', 'modules', mods);
@@ -1533,6 +1590,10 @@
                 const s = document.querySelector('.sidebar__link[data-section="schedule"]');
                 if (s) s.click();
             }
+            else if (section === 'footer-credits') {
+                const s = document.querySelector('.sidebar__link[data-section="footer"]');
+                if (s) s.click();
+            }
             // 应用分区过滤
             const f = document.querySelector('[data-filter-for="' + section + '"]');
             if (f) { f.value = q; f.dispatchEvent(new Event('input')); }
@@ -1542,6 +1603,7 @@
                 : section === 'schedule-ann' ? document.querySelector('[data-announcement-index="' + key + '"]')
                 : section === 'social' ? document.querySelector('#social-list [data-index="' + key + '"]')
                 : section === 'footer' ? document.querySelector('#footer-links-list [data-index="' + key + '"]')
+                : section === 'footer-credits' ? document.querySelector('#footer-credits-list [data-index="' + key + '"]')
                 : section === 'modules' ? document.querySelector('#modules-list [data-module-index="' + key + '"]')
                 : section === 'news' ? document.querySelector('#news-list [data-index="' + key + '"]')
                 : section === 'awards' ? document.querySelector('#awards-list [data-index="' + key + '"]')
@@ -1668,6 +1730,26 @@
                 if (!target) return;
                 if (target.text === FIXED_FOOTER_LINK.text && target.url === FIXED_FOOTER_LINK.url) return; // 固定条不可删
                 links.splice(idx, 1);
+                renderFooter();
+            });
+        }
+
+        // 制作组成员：新增/删除
+        $('#btn-add-credit-member').addEventListener('click', () => {
+            config.footer = config.footer || {};
+            if (!config.footer.credits || typeof config.footer.credits !== 'object') config.footer.credits = { members: [] };
+            if (!Array.isArray(config.footer.credits.members)) config.footer.credits.members = [];
+            config.footer.credits.members.push({ name: '', role: '', link: '' });
+            renderFooter();
+        });
+        const footerCreditsList = $('#footer-credits-list');
+        if (footerCreditsList) {
+            footerCreditsList.addEventListener('click', e => {
+                const btn = e.target.closest('[data-remove-credit]');
+                if (!btn) return;
+                const idx = parseInt(btn.dataset.removeCredit);
+                const members = (config.footer.credits && config.footer.credits.members) || [];
+                if (members[idx]) members.splice(idx, 1);
                 renderFooter();
             });
         }

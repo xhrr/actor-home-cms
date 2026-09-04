@@ -3,7 +3,7 @@
  * 使用 S3 兼容 API 上传图片到 R2 存储桶，并返回外链。
  * 支持可选 WebP 压缩转换（sharp）。
  */
-const { S3Client, PutObjectCommand, ListBucketsCommand } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, ListBucketsCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const multer = require('multer');
 const path = require('path');
 const crypto = require('crypto');
@@ -199,5 +199,81 @@ module.exports = function (ctx) {
                 res.status(500).json({ error: e.message });
             }
         });
+    });
+
+    /* ---------------- 删除桶内对象 ---------------- */
+
+    // 从完整外链反解对象 key：剥掉 publicBaseUrl 前缀；非本站链接返回空串
+    function keyFromUrl(config, url) {
+        let base = String(config.publicBaseUrl || '').trim().replace(/\/+$/, '');
+        if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(base)) base = 'https://' + base;
+        if (!base || !url) return '';
+        return String(url).startsWith(base + '/') ? String(url).slice(base.length + 1) : '';
+    }
+
+    // 根据链接 / 对象 key 删除存储桶里的照片，并同步清理媒体库登记。
+    // body 支持单条 {url} / {key}，或批量 {urls:[...]} / {keys:[...]}
+    ctx.app.post('/api/plugins/cloudflare-r2/delete', async (req, res) => {
+        try {
+            const body = req.body || {};
+            if (typeof body !== 'object' || Array.isArray(body)) return res.status(400).json({ error: 'Invalid body' });
+            const config = ctx.getData();
+            const client = getClient(config);
+
+            // 收集目标并去重（同 key/url 只处理一次）
+            const targets = [];
+            const seen = new Set();
+            const push = t => {
+                const sig = t.key || t.url;
+                if (sig && !seen.has(sig)) { seen.add(sig); targets.push(t); }
+            };
+            const singles = [];
+            if (body.key !== undefined) singles.push({ key: String(body.key).trim() });
+            if (body.url !== undefined) singles.push({ url: String(body.url).trim() });
+            const batchKeys = Array.isArray(body.keys) ? body.keys.map(k => ({ key: String(k).trim() })) : [];
+            const batchUrls = Array.isArray(body.urls) ? body.urls.map(u => ({ url: String(u).trim() })) : [];
+            [...singles, ...batchKeys, ...batchUrls].forEach(push);
+            if (!targets.length) return res.status(400).json({ error: '请提供 key 或 url（单条 {url}/{key}，批量 {urls}/{keys}）' });
+
+            // 媒体库索引：url -> 条目（用于反查 key、删除后清理登记）
+            const remoteByUrl = {};
+            (ctx.media.listRemote() || []).forEach(r => { if (r.url) remoteByUrl[r.url] = r; });
+
+            const results = [];
+            for (const t of targets) {
+                try {
+                    // 解析对象 key：优先直接给 key → url 剥前缀 → 媒体库按 url 反查
+                    let key = String(t.key || '').trim();
+                    if (!key && t.url) key = keyFromUrl(config, t.url);
+                    if (!key && t.url && remoteByUrl[t.url]) key = String(remoteByUrl[t.url].key || '').trim();
+                    if (!key) {
+                        results.push({ input: t.key || t.url, error: '无法从输入解析出对象 key（请确认 publicBaseUrl 与链接前缀一致）' });
+                        continue;
+                    }
+
+                    // 删除桶对象（S3 语义：key 不存在也视为删除成功）
+                    await client.send(new DeleteObjectCommand({ Bucket: config.bucket, Key: key }));
+
+                    // 同步清理媒体库登记（按 url 或 key 匹配，可能多条）
+                    let mediaRemoved = false;
+                    for (const r of ctx.media.listRemote()) {
+                        if ((t.url && r.url === t.url) || (key && r.key === key)) {
+                            ctx.media.removeRemote(r.id);
+                            mediaRemoved = true;
+                        }
+                    }
+
+                    results.push({ input: t.key || t.url, key, deleted: true, mediaRemoved });
+                } catch (e) {
+                    results.push({ input: t.key || t.url, key: t.key || '', error: e.message });
+                }
+            }
+
+            const failed = results.filter(r => r.error).length;
+            res.json({ success: failed === 0, results, failed });
+        } catch (e) {
+            ctx.log('delete failed:', e.message);
+            res.status(500).json({ error: e.message });
+        }
     });
 };

@@ -343,14 +343,42 @@ window.CMS.registerModule('hero', function (mod) {
         // 版权链接：可配置多条；无效条目（文字与链接都为空）不渲染
         const copyLinks = (Array.isArray(footer.links) ? footer.links : [])
             .filter(l => l && (String(l.text || '').trim() || String(l.url || '').trim()));
+        // 制作组：悬停固定条「©杉果派」弹出成员名单；点击仍照常跳转杉果派外链
+        const credits = footer.credits || { members: [] };
+        const creditsTitle = esc(String((credits.title || '制作组') + '').trim() || '制作组');
+        const creditMembers = (Array.isArray(credits.members) ? credits.members : [])
+            .filter(m => m && String(m.name || '').trim());
         const parts = [];
         if (copyright) parts.push(esc(copyright));
         copyLinks.forEach(l => {
             const url = safeUrl(l.url, 'link');
             const text = esc(String(l.text || l.url || '').trim());
-            parts.push(url
-                ? `<a class="footer__copy-link" href="${url}" target="_blank" rel="noopener noreferrer">${text}</a>`
-                : `<span class="footer__copy-text">${text}</span>`);
+            const isFixed = l.text === '©杉果派';
+            if (isFixed) {
+                parts.push(`<span class="footer__credits" id="footerCredits">
+                <a class="footer__copy-link footer__credits-trigger" href="${url}" target="_blank" rel="noopener noreferrer" tabindex="0">${text}</a>
+                <span class="footer__credits-popup" role="tooltip">
+                    <span class="footer__credits-title">${creditsTitle}</span>
+                    ${creditMembers.length ? `
+                    <span class="footer__credits-list">
+                        ${creditMembers.map(m => {
+                            const name = esc(String(m.name || '').trim());
+                            const roleText = esc(String(m.role || '').trim());
+                            const mLink = safeUrl(m.link, 'link');
+                            return `
+                        <span class="footer__credits-member">
+                            ${mLink ? `<a class="footer__credits-name" href="${mLink}" target="_blank" rel="noopener noreferrer">${name}</a>` : `<span class="footer__credits-name">${name}</span>`}
+                            ${roleText ? `<span class="footer__credits-role">${roleText}</span>` : ''}
+                        </span>`;
+                        }).join('')}
+                    </span>` : ''}
+                </span>
+            </span>`);
+            } else {
+                parts.push(url
+                    ? `<a class="footer__copy-link" href="${url}" target="_blank" rel="noopener noreferrer">${text}</a>`
+                    : `<span class="footer__copy-text">${text}</span>`);
+            }
         });
         // 免责声明：紧跟版权文字末尾，悬停/聚焦/点击展示全文
         if (disclaimer) {
