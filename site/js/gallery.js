@@ -51,25 +51,38 @@
             counterEl.style.display = multi ? '' : 'none';
         }
 
+        let closeTimer = null;
+
         function open(src) {
             curIndex = curImages.indexOf(src);
             lightboxImg.src = src;
             lightbox.style.display = 'flex';
+            void lightbox.offsetWidth; // 强制回流：让 .is-open 的淡入过渡从关闭态起始
+            lightbox.classList.add('is-open');
             document.body.style.overflow = 'hidden';
             syncNav();
             prefetchNeighbors();
         }
 
-        function show(i) {
+        function show(i, dir) {
             if (i < 0 || i >= curImages.length) return;
             curIndex = i;
             lightboxImg.src = curImages[i];
+            playSwap(dir);
             syncNav();
             prefetchNeighbors();
         }
 
-        function prev() { show(curIndex - 1); }
-        function next() { show(curIndex + 1); }
+        // 左右切换方向滑入：移除动画类→强制回流→按方向重挂
+        function playSwap(dir) {
+            if (!dir) return;
+            lightboxImg.classList.remove('swap-next', 'swap-prev');
+            void lightboxImg.offsetWidth;
+            lightboxImg.classList.add(dir === 'prev' ? 'swap-prev' : 'swap-next');
+        }
+
+        function prev() { show(curIndex - 1, 'prev'); }
+        function next() { show(curIndex + 1, 'next'); }
 
         function prefetchNeighbors() {
             [curIndex - 1, curIndex + 1].forEach(i => {
@@ -80,13 +93,21 @@
         }
 
         function close() {
-            lightbox.style.display = 'none';
-            lightboxImg.src = '';
+            lightbox.classList.remove('is-open');
             document.body.style.overflow = '';
+            clearTimeout(closeTimer);
+            closeTimer = setTimeout(() => {
+                if (!lightbox.classList.contains('is-open')) {
+                    lightbox.style.display = 'none';
+                    lightboxImg.src = '';
+                }
+            }, 360);
         }
 
-        grid.querySelectorAll('.gallery__item img').forEach(img => {
-            img.addEventListener('click', () => open(img.currentSrc || img.src));
+        // 事件委托：瀑布流条目为渐进插入，统一在网格上代理点击
+        grid.addEventListener('click', e => {
+            const img = e.target.closest('.gallery__item img');
+            if (img) open(img.currentSrc || img.src);
         });
 
         const closeBtn = document.getElementById('lightbox-close');
@@ -161,6 +182,8 @@
     }
 
     function renderList() {
+        masonryItemsData = null;
+        masonryState = null;
         if (top) {
             top.innerHTML = `
                 <p class="gallery-page__eyebrow">GALLERY</p>
@@ -181,6 +204,136 @@
             });
         }
     }
+
+    /* ---------- 瀑布流：先量后排 + 追加式分栏 ----------
+       CSS 多栏在图片高度未知时，每次加载完成都会全局再平衡（条目在栏间搬家）。
+       这里先测量宽高比、给条目写死 aspect-ratio，再按最短栏"只追加不移动"——
+       已落位内容永不改变位置，加载期零跳动。尺寸存 sessionStorage，同会话秒开。 */
+
+    const DIMS_CACHE_KEY = 'masonry-dims-v1';
+    const MASONRY_MAX_PARALLEL = 6;
+    const MASONRY_TIMEOUT = 8000;
+    let masonryState = null;
+    let masonryItemsData = null;
+    let masonryGeneration = 0;
+    let masonryResizeTimer = null;
+
+    function readDimsCache() {
+        try { return JSON.parse(sessionStorage.getItem(DIMS_CACHE_KEY) || '{}'); } catch (e) { return {}; }
+    }
+
+    function writeDimsCache(cache) {
+        try { sessionStorage.setItem(DIMS_CACHE_KEY, JSON.stringify(cache)); } catch (e) { /* 隐私模式等场景静默失败 */ }
+    }
+
+    function masonryCols() {
+        const w = window.innerWidth;
+        return w > 900 ? 3 : (w > 640 ? 2 : 1);
+    }
+
+    function masonryItemHtml(it) {
+        return `<figure class="gallery__item has-ratio" style="aspect-ratio:${it.ratio}">
+            <img src="${safeUrl(it.url, 'image')}" alt="${esc(it.alt)}" loading="lazy" decoding="async" onerror="this.style.display='none'">
+        </figure>`;
+    }
+
+    function masonryAppendInto(state, it) {
+        const ci = state.heights.indexOf(Math.min.apply(null, state.heights));
+        const holder = document.createElement('div');
+        holder.innerHTML = masonryItemHtml(it);
+        const fig = holder.firstElementChild;
+        state.colEls[ci].appendChild(fig);
+        // 下一帧再揭示：让 opacity 过渡（显现淡入）真实播放
+        requestAnimationFrame(() => fig.classList.add('is-visible'));
+        // 栏宽一致，比例即相对高度；0.12 为条目间距估算
+        state.heights[ci] += (it.ratio || 0.75) + 0.12;
+    }
+
+    function masonryStatus(text) {
+        const el = document.getElementById('masonryStatus');
+        if (el) {
+            el.textContent = text || '';
+            el.style.display = text ? '' : 'none';
+        }
+    }
+
+    function renderMasonry(items) {
+        const gen = ++masonryGeneration;
+        masonryItemsData = items;
+        const cols = masonryCols();
+        grid.innerHTML = `
+            <p class="masonry-status" id="masonryStatus" style="display:none"></p>
+            <div class="album-masonry">${Array.from({ length: cols }, () => '<div class="album-masonry__col"></div>').join('')}</div>
+        `;
+        const state = {
+            cols,
+            colEls: Array.from(grid.querySelectorAll('.album-masonry__col')),
+            heights: new Array(cols).fill(0)
+        };
+        masonryState = state;
+
+        const cache = readDimsCache();
+        const queue = [];
+        items.forEach(it => {
+            const c = cache[it.url];
+            if (c && c[0] > 0 && c[1] > 0) it.ratio = c[0] / c[1];
+            else queue.push(it);
+        });
+
+        let nextToPlace = 0;
+        let remaining = queue.length;
+        let placed = 0;
+
+        function flush() {
+            if (gen !== masonryGeneration) return;
+            while (nextToPlace < items.length && items[nextToPlace].ratio !== undefined) {
+                const it = items[nextToPlace++];
+                if (!it.failed) { masonryAppendInto(state, it); placed++; }
+            }
+            if (remaining > 0) masonryStatus(`正在解析图片尺寸… 剩余 ${remaining} 张`);
+            else masonryStatus('');
+            if (nextToPlace >= items.length && !placed && items.length) {
+                grid.innerHTML = '<p class="gallery-page__empty">图片暂时无法加载</p>';
+                masonryState = null;
+            }
+        }
+
+        let active = 0, qi = 0;
+        function pump() {
+            if (gen !== masonryGeneration) return;
+            while (active < MASONRY_MAX_PARALLEL && qi < queue.length) {
+                const it = queue[qi++];
+                active++;
+                const im = new Image();
+                const done = (w, h, failed) => {
+                    if (gen !== masonryGeneration || it.ratio !== undefined) return;
+                    active--;
+                    remaining--;
+                    if (failed) it.failed = true;
+                    it.ratio = (w > 0 && h > 0) ? w / h : 3 / 4;
+                    if (!failed && w > 0) { cache[it.url] = [w, h]; writeDimsCache(cache); }
+                    flush();
+                    pump();
+                };
+                im.onload = () => done(im.naturalWidth, im.naturalHeight, false);
+                im.onerror = () => done(0, 0, true);
+                setTimeout(() => { if (it.ratio === undefined) done(3 / 4, 1, false); }, MASONRY_TIMEOUT);
+                im.src = it.url;
+            }
+        }
+
+        flush();
+        pump();
+    }
+
+    // 断点跨越时用已测尺寸瞬时重分布（图片走缓存，无重复下载）
+    window.addEventListener('resize', () => {
+        if (!masonryItemsData) return;
+        clearTimeout(masonryResizeTimer);
+        masonryResizeTimer = setTimeout(() => {
+            if (masonryState && masonryState.cols !== masonryCols()) renderMasonry(masonryItemsData);
+        }, 200);
+    });
 
     /* ---------- 写真集详情 ---------- */
 
@@ -205,19 +358,12 @@
 
         if (!images.length) {
             grid.innerHTML = '<p class="gallery-page__empty">这个写真集还没有照片</p>';
+            curImages = [];
             return;
         }
 
-        grid.innerHTML = `
-            <div class="album-masonry">
-                ${images.map((url, i) => `
-                    <figure class="gallery__item">
-                        <img src="${safeUrl(url, 'image')}" alt="写真 ${i + 1}" loading="lazy" onerror="this.style.display='none'">
-                    </figure>
-                `).join('')}
-            </div>
-        `;
         curImages = images.filter(Boolean);
+        renderMasonry(images.map((url, i) => ({ url, alt: `写真 ${i + 1}` })));
     }
 
     /* ---------- 作品图集兼容 ---------- */
@@ -260,19 +406,12 @@
 
         if (!images.length) {
             grid.innerHTML = '<p class="gallery-page__empty">这个作品还没有剧照</p>';
+            curImages = [];
             return;
         }
 
-        grid.innerHTML = `
-            <div class="album-masonry">
-                ${images.map((url, i) => `
-                    <figure class="gallery__item">
-                        <img src="${safeUrl(url, 'image')}" alt="剧照 ${i + 1}" loading="lazy" onerror="this.style.display='none'">
-                    </figure>
-                `).join('')}
-            </div>
-        `;
         curImages = images.filter(Boolean);
+        renderMasonry(images.map((url, i) => ({ url, alt: `剧照 ${i + 1}` })));
     }
 
     /* ---------- 入口 ---------- */

@@ -12,3 +12,4 @@ data/
 START_HERE.md
 themes/*/
 /theme-packages/
+/plugins/qq-channel-watch/bin/

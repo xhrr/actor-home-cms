@@ -1,0 +1,10 @@
+{
+  "name": "qq-channel-watch",
+  "label": "QQ 频道监控（demo）",
+  "version": "0.1.0",
+  "description": "基于 tencent-channel-cli 定时轮询腾讯频道最新帖子并展示（只读，不写站点内容）。需在面板完成扫码登录并填写频道 ID。",
+  "author": "Actor CMS",
+  "server": "server.js",
+  "admin": "admin.js",
+  "assets": []
+}

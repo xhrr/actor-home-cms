@@ -5,6 +5,14 @@
 (function () {
     'use strict';
 
+    // JS 可用标记：图片加载淡入等渐进增强以 .js 作选择器门控
+    document.documentElement.classList.add('js');
+    // 捕获阶段监听 load（load 不冒泡）：画廊图片加载完成后淡入
+    document.addEventListener('load', function (e) {
+        const t = e.target;
+        if (t && t.tagName === 'IMG' && t.closest('.gallery__item, .album-card__cover')) t.classList.add('is-loaded');
+    }, true);
+
     const R = {};
     const NAV = {};
     const hooks = {
