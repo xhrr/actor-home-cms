@@ -3,6 +3,8 @@ dist
 .git
 .deploy-stage
 uploads
+data
 data/*.tmp
 *.log
 .DS_Store
+START_HERE.md
