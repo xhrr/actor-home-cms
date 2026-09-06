@@ -130,8 +130,9 @@ async function fetchNew(ctx, mark = true) {
 
 /* ---------------- 帖子 → GitHub Issue（按版块解析） ----------------
  * 版块决定类型（boardMap 面板可配）；正文必须自带原始链接，没有就整帖跳过；
- * 字段抽取：AI（默认开，凭证继承 weibo-watch 的 MiMo 配置）→ 失败降级最小字段；
- * 图片：下载 → WebP → 上传 cloudflare-r2 配置的桶（媒体库同步登记）→ 外链进 images；
+ * 字段抽取：AI（默认开，凭证继承 weibo-watch 的 MiMo 配置）→ 失败降级最小字段；解析先行，之后才转存图片；
+ * 图片：下载/上传各带重试 + 内容哈希去重（同图只传一次 R2）；全部转存失败不建 Issue，
+ *       整帖留待下轮重试（最多 3 轮），失败说明回复到帖子而不进 Issue 正文；
  * 产出 README 约定格式的 Issue（label 默认 qq-channel，人工过目后改 approved）。 */
 
 const ISSUE_LABEL_DEFAULT = 'qq-channel';
@@ -216,7 +217,7 @@ function aiConfig(cfg) {
 
 function buildPrompt(type, board, title, imageCount) {
     const spec = {
-        works: 'category：题材分类，只能填「电视剧/短剧/电影/影游」之一，正文无明确依据则填空串；title：作品名；role：饰演角色；year：上映年份；director：导演；synopsis：一句话剧情简介，不超过 50 字',
+        works: 'category：题材分类，只能填「电视剧/短剧/电影/影游」之一，正文无明确依据则填空串；title：作品名（按规则 2 提取，不带书名号）；role：饰演角色；year：上映年份；director：导演；synopsis：一句话剧情简介，不超过 50 字',
         album: 'title：写真/图集标题；author：摄影师或内容创作者',
         news: 'date：动态日期；title：动态标题；summary：一句话摘要，不超过 40 字',
         awards: 'year：获奖年份；name：奖项名称；org：颁奖方；work：关联作品名',
@@ -227,12 +228,15 @@ function buildPrompt(type, board, title, imageCount) {
 字段含义：${spec}。
 规则：
 1. 正文没有的信息一律输出空字符串，禁止编造；年份、日期等数字必须照抄正文，不得推算。
-2. title 是给站点展示的干净标题：去掉链接及其「链接:」前缀、@提及、「原作者:」标注、「请关注XX」类应援话术、表情、话题标签和多余空白，保留主体文案，不超过 20 字。
+2. title 按类型取：works 只取作品名本身——正文含《》时取其中名称并去掉书名号，去掉「官宣/开机/杀青/预告/定档/播出」等动态词；其余类型（写真集/动态等）取帖子主体文案。均须去掉链接及其「链接:」前缀、@提及、「原作者:」标注、「请关注XX」类应援话术、表情、话题标签和多余空白，不超过 20 字。
 3. author 只取内容创作者署名（如「原作者:xxx」）；「请关注XX」中的 XX 是被应援的艺人，不是 author。
 4. 日期类字段格式：只有年份用 YYYY，有月份用 YYYY.MM，有具体日期用 YYYY.MM.DD。
 5. 除 JSON 本体外不输出任何内容（无解释、无代码块标记）。
 
-示例（album）——帖子正文「原作者:杉果派 想不出文案了，就这样吧 请关注马倩倩老师 链接: https://v.douyin.com/xxx」应输出：
+示例——
+works：帖子标题「新剧《春色寄情人》官宣开机」正文「马倩倩饰演林晚，预计2027年与大家见面，导演：王之」→
+{"category":"电视剧","title":"春色寄情人","role":"林晚","year":"2027","director":"王之","synopsis":""}
+album：帖子正文「原作者:杉果派 想不出文案了，就这样吧 请关注马倩倩老师 链接: https://v.douyin.com/xxx」→
 {"title":"想不出文案了，就这样吧","author":"杉果派"}
 
 帖子标题：${title}
@@ -315,26 +319,60 @@ async function getFeedDetail(cfg, feedId) {
     };
 }
 
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/** 通用重试：times 为失败后的额外重试次数，指数退避（0.5s 起） */
+async function withRetry(fn, times = 2) {
+    let lastErr;
+    for (let i = 0; i <= times; i++) {
+        try { return await fn(); } catch (e) {
+            lastErr = e;
+            if (i < times) await sleep(500 * Math.pow(2, i));
+        }
+    }
+    throw lastErr;
+}
+
+/** 下载图片：无 Referer → 带 pd.qq.com Referer → 再重试一次，共 3 次尝试（含指数退避） */
 async function downloadImage(url) {
-    const attempt = referer => fetch(url, {
-        headers: referer ? { 'Referer': referer, 'User-Agent': 'Mozilla/5.0' } : {},
-        signal: AbortSignal.timeout(30000)
-    });
-    let res = await attempt(false);
-    if (res.status === 403 || res.status === 404) res = await attempt('https://pd.qq.com/');
-    if (!res.ok) return null;
-    const buf = Buffer.from(await res.arrayBuffer());
-    return (buf.length && buf.length < 25 * 1024 * 1024) ? buf : null;
+    const attempts = [null, 'https://pd.qq.com/', 'https://pd.qq.com/'];
+    let lastErr = '';
+    for (let i = 0; i < attempts.length; i++) {
+        try {
+            const res = await fetch(url, {
+                headers: attempts[i] ? { 'Referer': attempts[i], 'User-Agent': 'Mozilla/5.0' } : {},
+                signal: AbortSignal.timeout(30000)
+            });
+            if (res.ok) {
+                const buf = Buffer.from(await res.arrayBuffer());
+                return (buf.length && buf.length < 25 * 1024 * 1024) ? buf : null;
+            }
+            lastErr = 'HTTP ' + res.status;
+        } catch (e) {
+            lastErr = e.message;
+        }
+        if (i < attempts.length - 1) await sleep(500 * Math.pow(2, i));
+    }
+    console.error('[qq-channel-watch] 图片下载失败:', lastErr, url.slice(0, 80));
+    return null;
 }
 
 const IMG_CONTENT_TYPES = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif' };
 
-/** 按 cloudflare-r2 插件配置上传（WebP 压缩/媒体库登记与其保持一致） */
+/** 按 cloudflare-r2 插件配置上传（WebP 压缩/媒体库登记与其保持一致）。
+ * 带内容哈希去重：同一张图（失败重跑/重复帖子）只传一次 R2，重试复用已传 URL。 */
 async function uploadToR2(ctx, buf, tag) {
     const data = (core.readConfig().plugins || {}).data || {};
     const rc = data['cloudflare-r2'] || {};
     if (!rc.accountId || !rc.accessKeyId || !rc.secretAccessKey || !rc.bucket || !rc.publicBaseUrl) {
         return { ok: false, error: 'cloudflare-r2 插件配置不完整' };
+    }
+    const hash = crypto.createHash('sha256').update(buf).digest('hex');
+    const seen = (ctx.getData().uploadIndex || {})[hash];
+    // 命中还需确认媒体库仍有登记（对象被真删后索引失效，需重传）
+    if (seen && ctx.media.listRemote().some(r => r.url === seen)) {
+        ctx.log('图片哈希命中，复用已传 URL（', tag, '）');
+        return { ok: true, url: seen };
     }
     const sharp = require('sharp');
     let body = buf, contentType = 'application/octet-stream', outExt = '.jpg';
@@ -364,11 +402,18 @@ async function uploadToR2(ctx, buf, tag) {
     const endpoint = rc.endpoint ? String(rc.endpoint).replace(/\/+$/, '') : `https://${rc.accountId}.r2.cloudflarestorage.com`;
     const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
     const client = new S3Client({ region: rc.region || 'auto', endpoint, credentials: { accessKeyId: rc.accessKeyId, secretAccessKey: rc.secretAccessKey } });
-    await client.send(new PutObjectCommand({ Bucket: rc.bucket, Key: key, Body: body, ContentType: contentType }));
+    await withRetry(() => client.send(new PutObjectCommand({ Bucket: rc.bucket, Key: key, Body: body, ContentType: contentType })), 2);
     let base = String(rc.publicBaseUrl || '').trim().replace(/\/+$/, '');
     if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(base)) base = 'https://' + base;
     const url = base + '/' + key;
     try { ctx.media.addRemote({ url, key, filename: 'channel-' + tag + outExt, source: 'r2' }); } catch (e) { /* 媒体库失败不阻塞 */ }
+    // 上传成功即记哈希索引（setData 同步落盘，重启后去重依然有效），上限 300 条防膨胀
+    try {
+        const d = ctx.getData();
+        const idx = { ...(d.uploadIndex || {}), [hash]: url };
+        Object.keys(idx).slice(0, Math.max(0, Object.keys(idx).length - 300)).forEach(k => delete idx[k]);
+        ctx.setData({ ...d, uploadIndex: idx });
+    } catch (e) { /* 索引失败不影响上传结果 */ }
     return { ok: true, url };
 }
 
@@ -385,21 +430,14 @@ async function processFeedIssue(ctx, feed, opts) {
     const sourceUrl = extractSourceUrl(f.content);
     if (!sourceUrl) return { ok: false, skip: '未带原始链接' };
 
-    const title = cleanTitle(f.title) || cleanTitle(f.content).slice(0, 30) || '频道动态';
-
-    let imageUrls = f.images.map(im => im.url);
-    let transferFailed = 0;
-    if (opts.transferImages && f.images.length) {
-        const urls = [];
-        for (let i = 0; i < f.images.length; i++) {
-            const buf = await downloadImage(f.images[i].url);
-            if (!buf) { transferFailed++; continue; }
-            const up = await uploadToR2(ctx, buf, feed.id.slice(-8) + '-' + (i + 1));
-            if (up.ok) urls.push(up.url); else { transferFailed++; ctx.log('R2 上传失败:', up.error); }
-        }
-        if (urls.length) imageUrls = urls;
+    let title = cleanTitle(f.title) || cleanTitle(f.content).slice(0, 30) || '频道动态';
+    if (type === 'works') {
+        // AI 兜底路径对齐作品名口径：正文/标题含《》时直接取其中名称（去书名号）
+        const m = (f.content + '\n' + f.title).match(/《(.+?)》/);
+        if (m && m[1].trim()) title = m[1].trim();
     }
 
+    // 解析先行：字段抽取完成后再动图片上传，AI 阶段失败不会白传图
     let fields = {}, parseBy = 'minimal';
     if (cfg.aiEnabled !== false) {
         const ai = await parseWithAI(cfg, type, f.board, title, f.content, f.images.length);
@@ -408,8 +446,44 @@ async function processFeedIssue(ctx, feed, opts) {
     }
     if (!fields.title) fields.title = title;
 
-    const body = buildBlock(type, fields, sourceUrl, imageUrls)
-        + (transferFailed ? `\n\n（另有 ${transferFailed} 张图片转存失败，请对照频道帖子原图）` : '');
+    let imageUrls = f.images.map(im => im.url);
+    let transferFailed = 0;
+    const expectTransfer = opts.transferImages && f.images.length > 0;
+    if (expectTransfer) {
+        const urls = [];
+        for (let i = 0; i < f.images.length; i++) {
+            const buf = await downloadImage(f.images[i].url);
+            if (!buf) { transferFailed++; continue; }
+            const up = await uploadToR2(ctx, buf, feed.id.slice(-8) + '-' + (i + 1));
+            if (up.ok) urls.push(up.url); else { transferFailed++; ctx.log('R2 上传失败:', up.error); }
+        }
+        if (urls.length) imageUrls = urls;
+        // 全部转存失败：不建 Issue（不带 QQ 原链上线），整帖留到下轮重试，最多 3 轮后放弃；失败原因直接回复到帖子
+        if (urls.length === 0) {
+            const failCounts = { ...(ctx.getData().failCounts || {}) };
+            const rounds = (failCounts[feed.id] || 0) + 1;
+            const giveUp = rounds >= 3;
+            if (giveUp) delete failCounts[feed.id]; else failCounts[feed.id] = rounds;
+            const keys = Object.keys(failCounts);
+            if (keys.length > 200) keys.slice(0, keys.length - 200).forEach(k => delete failCounts[k]);
+            const d = ctx.getData();
+            ctx.setData({ ...d, failCounts });
+            return {
+                ok: false,
+                retry: !giveUp,
+                skip: `图片转存全部失败（0/${f.images.length}）${giveUp ? '，已重试 3 轮放弃' : '，将自动重试'}`
+            };
+        }
+        // 有成功转存：清掉历史失败计数
+        if ((ctx.getData().failCounts || {})[feed.id]) {
+            const d = ctx.getData();
+            const failCounts = { ...d.failCounts };
+            delete failCounts[feed.id];
+            ctx.setData({ ...d, failCounts });
+        }
+    }
+
+    const body = buildBlock(type, fields, sourceUrl, imageUrls);
     const issueTitle = (`[QQ频道·${f.board}] ${fields.title || title}`).slice(0, 80);
 
     if (!opts.create) return { ok: true, staged: true, type, parseBy, sourceUrl, issueTitle, body, imageCount: imageUrls.length, transferFailed };
@@ -428,12 +502,24 @@ async function processFeedIssue(ctx, feed, opts) {
     });
     if (!cres.ok) return { ok: false, retry: true, skip: 'Issue 创建失败 HTTP ' + cres.status + ': ' + (await cres.text()).slice(0, 150) };
     const issue = await cres.json();
-    return { ok: true, created: true, issueUrl: issue.html_url, issueTitle, type, parseBy };
+    return { ok: true, created: true, issueUrl: issue.html_url, issueTitle, type, parseBy, transferFailed };
+}
+
+/** 管线互斥队列：轮询 / 手动触发 / WS @ 触发都经过同一条 Promise 链依次执行，
+ * 消除并发重复拉取与写状态竞态（同一时刻只有一条管线在跑，后来的排队等待） */
+let pipelineChain = Promise.resolve();
+function queuePipeline(task) {
+    const run = pipelineChain.then(task, task);
+    pipelineChain = run.then(() => {}, () => {});
+    return run;
+}
+function runIssuePipeline(ctx, opts = {}) {
+    return queuePipeline(() => runIssuePipelineInner(ctx, opts));
 }
 
 /** 定时主管线：拉新帖 → 逐帖转 Issue → 统一标记。
  * opts.create：是否真正创建 Issue（默认按面板开关）；opts.mark：是否标记已见（预览时 false） */
-async function runIssuePipeline(ctx, opts = {}) {
+async function runIssuePipelineInner(ctx, opts = {}) {
     const cfg = ctx.getData();
     const processed = Array.isArray(cfg.processed) ? cfg.processed.slice() : [];
     const issueDone = Array.isArray(cfg.issueFeedIds) ? cfg.issueFeedIds.slice() : [];
@@ -469,8 +555,13 @@ async function runIssuePipeline(ctx, opts = {}) {
         }
         if (r.skip !== undefined) {
             if (mark) {
-                processed.push(feed.id);      // 跳过/失败的帖子也标记，避免每小时重复处理
-                if (!r.retry) skipped.push({ title: String(feed.title || feed.id || '').slice(0, 30), reason: r.skip });
+                if (r.retry) {
+                    // 可重试失败（如图片全部转存失败）：不标记已见，下轮轮询自动重试（failCounts 计轮数）
+                    skipped.push({ title: String(feed.title || feed.id || '').slice(0, 30), reason: r.skip });
+                } else {
+                    processed.push(feed.id);  // 跳过/失败的帖子标记，避免每小时重复处理
+                    skipped.push({ title: String(feed.title || feed.id || '').slice(0, 30), reason: r.skip });
+                }
             }
             if (r.created) issueDone.push(feed.id);
         } else if (r.ok && r.created) {
@@ -480,9 +571,10 @@ async function runIssuePipeline(ctx, opts = {}) {
             processed.push(feed.id);          // 未开自动创建（预览模式）：标记已见，避免重复处理
         }
 
-        // 回执：处理完的回「已处理」，处理失败的回「因为xxx未处理」（幂等，预览模式不发）
+        // 回执：成功回「已处理」（部分图片转存失败时附带说明）；失败回「因为xxx未处理」。
+        // 失败说明只回复到帖子，不进 Issue 正文（幂等，预览模式不发）
         let statusText = null;
-        if (r.created) statusText = '已处理';
+        if (r.created) statusText = r.transferFailed ? `已处理（另有 ${r.transferFailed} 张图片转存失败，请到频道核对）` : '已处理';
         else if (r.skip !== undefined) statusText = `因为${r.skip}未处理`;
         if (statusText && mark && cfg.statusReply !== false && !replied.includes(feed.id)) {
             const rep = await runCli(cfg, ['feed', 'do-comment', '--feed-id', feed.id, '--feed-create-time', toMs(feed.timeRaw), '--content', statusText, '--comment-type', '1'], 30000);
@@ -523,7 +615,7 @@ function mgr() {
     if (!wsMgr) wsMgr = {
         ws: null, connected: false, session: null, seq: 0, heartbeat: null,
         reconnects: 0, lastEventAt: null, lastError: '',
-        token: null, tokenExpiresAt: 0, inFlight: false, gen: 0
+        token: null, tokenExpiresAt: 0, gen: 0
     };
     return wsMgr;
 }
@@ -558,39 +650,38 @@ function handleEvent(ctx, type, d) {
 
 async function onTrigger(ctx, eventName) {
     const st = mgr();
-    if (st.inFlight) { ctx.log(eventName, '触发到达，前一次拉取仍在进行，跳过'); return; }
-    st.inFlight = true;
     st.lastEventAt = new Date().toISOString();
-    try {
-        const r = await fetchNew(ctx);
-        if (!r.ok) { st.lastError = '拉取失败: ' + r.error; ctx.log(eventName, '触发拉取失败:', r.error); return; }
-        const cfg = ctx.getData();
-        const commented = Array.isArray(cfg.commentedFeedIds) ? cfg.commentedFeedIds.slice() : [];
-        let comments = 0;
-        if (cfg.autoComment !== false) {
-            // 目标：本次拉到的新帖；没有新帖时取最新一条未被评论过的帖子（便于 @ 直接演示）
-            let targets = r.fresh.filter(f => f.content && !commented.includes(f.id));
-            if (!targets.length && r.latest && r.latest.content && !commented.includes(r.latest.id)) targets = [r.latest];
-            for (const f of targets) {
-                const c = await runCli(cfg, ['feed', 'do-comment', '--feed-id', f.id, '--feed-create-time', toMs(f.timeRaw), '--content', f.content, '--comment-type', '1'], 30000);
-                if (c.ok) { commented.push(f.id); comments++; ctx.log('已评论帖子', f.id.slice(0, 14) + '…'); }
-                else ctx.log('评论失败（feed', f.id.slice(0, 14) + '…）:', c.error);
+    // 与转 Issue 管线共用互斥队列：触发依次排队执行，不再与轮询/手动操作并发抢跑
+    return queuePipeline(async () => {
+        try {
+            const r = await fetchNew(ctx);
+            if (!r.ok) { st.lastError = '拉取失败: ' + r.error; ctx.log(eventName, '触发拉取失败:', r.error); return; }
+            const cfg = ctx.getData();
+            const commented = Array.isArray(cfg.commentedFeedIds) ? cfg.commentedFeedIds.slice() : [];
+            let comments = 0;
+            if (cfg.autoComment !== false) {
+                // 目标：本次拉到的新帖；没有新帖时取最新一条未被评论过的帖子（便于 @ 直接演示）
+                let targets = r.fresh.filter(f => f.content && !commented.includes(f.id));
+                if (!targets.length && r.latest && r.latest.content && !commented.includes(r.latest.id)) targets = [r.latest];
+                for (const f of targets) {
+                    const c = await runCli(cfg, ['feed', 'do-comment', '--feed-id', f.id, '--feed-create-time', toMs(f.timeRaw), '--content', f.content, '--comment-type', '1'], 30000);
+                    if (c.ok) { commented.push(f.id); comments++; ctx.log('已评论帖子', f.id.slice(0, 14) + '…'); }
+                    else ctx.log('评论失败（feed', f.id.slice(0, 14) + '…）:', c.error);
+                }
+                while (commented.length > 500) commented.shift();
             }
-            while (commented.length > 500) commented.shift();
+            const cfgNow = ctx.getData();
+            ctx.setData({
+                ...cfgNow,
+                commentedFeedIds: commented,
+                lastStatus: `@触发（${eventName}）：新帖 ${r.fresh.length} 条，已评论 ${comments} 条`
+            });
+            if (r.fresh.length || comments) ctx.log(eventName, ': 新帖', r.fresh.length, '条，评论', comments, '条');
+        } catch (e) {
+            mgr().lastError = e.message;
+            ctx.log('触发处理异常:', e.message);
         }
-        const cfgNow = ctx.getData();
-        ctx.setData({
-            ...cfgNow,
-            commentedFeedIds: commented,
-            lastStatus: `@触发（${eventName}）：新帖 ${r.fresh.length} 条，已评论 ${comments} 条`
-        });
-        if (r.fresh.length || comments) ctx.log(eventName, ': 新帖', r.fresh.length, '条，评论', comments, '条');
-    } catch (e) {
-        mgr().lastError = e.message;
-        ctx.log('触发处理异常:', e.message);
-    } finally {
-        mgr().inFlight = false;
-    }
+    });
 }
 
 function startWS(ctx) {
@@ -680,6 +771,7 @@ module.exports = function (ctx) {
                 enabled: cfg.enabled !== false,
                 guildId: cfg.guildId || '',
                 pollInterval: parseInt(cfg.pollInterval, 10) || 10,
+                nextPollAt: cfg.enabled === false ? '' : new Date(lastPoll + (parseInt(cfg.pollInterval, 10) || 10) * 60 * 1000).toISOString(),
                 processedCount: (cfg.processed || []).length,
                 lastStatus: cfg.lastStatus || '',
                 lastCheck: cfg.lastCheck || '',

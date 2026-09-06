@@ -153,7 +153,10 @@
                             d.loggedIn ? '✅ 已登录' : '⚠️ 未登录',
                             d.guildId ? '频道 ' + d.guildId : '未填频道 ID',
                             d.lastStatus,
-                            d.processedCount ? `已处理 ${d.processedCount} 条` : ''
+                            d.processedCount ? `已处理 ${d.processedCount} 条` : '',
+                            d.enabled
+                                ? (d.nextPollAt ? '下次执行 ' + new Date(d.nextPollAt).toLocaleString('zh-CN', { hour12: false }) : '')
+                                : '自动轮询已停用'
                         ].filter(Boolean).join(' · ');
                     }
                     show(d.loggedIn ? '✅ 已登录' : '⚠️ ' + (d.loginDetail || '未登录'), !d.loggedIn);

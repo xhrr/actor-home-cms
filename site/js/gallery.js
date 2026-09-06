@@ -179,6 +179,8 @@
                 }).join('')}
             </div>
         `;
+        // 主题 CSS 将卡片初始隐藏（opacity:0），搜索重渲染的卡片必须补揭示类，否则停在透明态
+        Array.prototype.forEach.call(grid.querySelectorAll('.album-card'), el => el.classList.add('is-visible'));
     }
 
     function renderList() {

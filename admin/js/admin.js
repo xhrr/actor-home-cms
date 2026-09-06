@@ -1951,6 +1951,15 @@
             });
             const json = await res.json().catch(() => ({}));
             if (res.ok) {
+                // 用服务器确认的数据刷新内存并原地重渲染该面板：
+                // 否则之后任何 renderPlugins 都会用页面加载时的旧数据回显（如轮询间隔改完又变回旧值），
+                // 面板缓存的 currentData 也会一直是旧快照，下次保存把旧状态合并回服务器
+                if (json && json.data && config.plugins && config.plugins.data) config.plugins.data[name] = json.data;
+                const panelEl = document.querySelector(`[data-plugin-panel="${name}"]`);
+                if (panelEl && typeof panel.render === 'function') {
+                    panelEl.innerHTML = panel.render(json.data || {});
+                    if (typeof panel.bind === 'function') panel.bind();
+                }
                 if (statusEl) {
                     statusEl.textContent = '✅ 已保存';
                     statusEl.style.color = '#28a745';
