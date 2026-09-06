@@ -267,6 +267,41 @@
         return links;
     }
 
+    /* ---------- 分享：原生分享面板优先，降级复制链接 ---------- */
+
+    function legacyCopy(text) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        let ok = false;
+        try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+        document.body.removeChild(ta);
+        return ok;
+    }
+
+    function copyToClipboard(text) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            return navigator.clipboard.writeText(text).then(() => true).catch(() => legacyCopy(text));
+        }
+        return Promise.resolve(legacyCopy(text));
+    }
+
+    /** 分享当前页：支持 Web Share API 的浏览器拉起原生面板；不支持时降级复制链接。
+     * 返回 'shared' | 'copied' | 'cancelled' | 'failed'，供按钮做文字反馈。 */
+    function shareUrl(title) {
+        const url = window.location.href;
+        if (navigator.share) {
+            return navigator.share({ title: title || document.title, url: url }).then(() => 'shared').catch(err => {
+                if (err && err.name === 'AbortError') return 'cancelled';
+                return copyToClipboard(url).then(ok => (ok ? 'copied' : 'failed'));
+            });
+        }
+        return copyToClipboard(url).then(ok => (ok ? 'copied' : 'failed'));
+    }
+
     window.CMS = {
         registerModule,
         registerNav,
@@ -279,6 +314,7 @@
         buildNavLinks,
         initNavShell,
         revealNow,
+        shareUrl,
         utils: {
             esc,
             cleanUrl,

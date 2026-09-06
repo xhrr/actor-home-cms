@@ -393,6 +393,7 @@ window.CMS.registerModule('hero', function (mod) {
         <p class="footer__brand">${esc((C.actor && C.actor.nameEn) || '')}</p>
         <div class="footer__social">
             ${links.map(l => `<a href="${safeUrl(l.url, 'link') || '#'}" target="_blank" rel="noopener noreferrer">${esc(l.name)}</a>`).join('')}
+            <button type="button" class="footer__share hover-underline" id="footerShare">分享本站</button>
         </div>
         <p class="footer__copy">${parts.join('<span class="footer__copy-sep"> · </span>')}</p>
     </div>

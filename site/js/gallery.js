@@ -143,6 +143,21 @@
 
     let gallerySearchQuery = '';
 
+    /** 分享按钮绑定：点击后按结果给文字反馈（原生分享成功无需反馈） */
+    function bindShareButton(btn, title) {
+        if (!btn) return;
+        btn.addEventListener('click', () => {
+            window.CMS.shareUrl(title).then(state => {
+                if (state === 'cancelled') return;
+                const original = btn.textContent;
+                if (state === 'copied' || state === 'failed') {
+                    btn.textContent = state === 'copied' ? '已复制 ✓' : '复制失败';
+                    setTimeout(() => { btn.textContent = original; }, 1800);
+                }
+            });
+        });
+    }
+
     function renderAlbumCards() {
         const q = gallerySearchQuery.trim().toLowerCase();
         const match = a => !q || [a.title, a.author].some(f => String(f || '').toLowerCase().includes(q));
@@ -348,6 +363,7 @@
                     <a class="hover-underline" href="/gallery.html">← 返回写真集</a>
                     <h1 class="album-detail__title">${esc(album.title || ('写真集 ' + (ai + 1)))}</h1>
                     <span class="album-detail__count">${images.length} 张</span>
+                    <button type="button" class="album-detail__share hover-underline" id="albumShare">分享</button>
                 </div>
                 ${(album.author || source) ? `
                     <div class="album-detail__meta">
@@ -357,6 +373,7 @@
                 ` : ''}
             `;
         }
+        bindShareButton(document.getElementById('albumShare'), album.title || '写真集');
 
         if (!images.length) {
             grid.innerHTML = '<p class="gallery-page__empty">这个写真集还没有照片</p>';
@@ -392,6 +409,7 @@
                     <a class="hover-underline" href="/works.html">← 返回作品</a>
                     <h1 class="album-detail__title">${esc(work ? work.title : '作品图集')}</h1>
                     <span class="album-detail__count">${images.length} 张</span>
+                    <button type="button" class="album-detail__share hover-underline" id="workShare">分享</button>
                 </div>
                 ${work ? `
                     <div class="work-detail">
@@ -405,6 +423,7 @@
                 ` : ''}
             `;
         }
+        bindShareButton(document.getElementById('workShare'), work ? work.title : '作品图集');
 
         if (!images.length) {
             grid.innerHTML = '<p class="gallery-page__empty">这个作品还没有剧照</p>';

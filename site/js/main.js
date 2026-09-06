@@ -144,6 +144,22 @@
         targets.forEach(el => io.observe(el));
     }
 
+    /** 页脚分享按钮：原生分享面板优先，降级复制链接并给文字反馈 */
+    function initShare() {
+        const btn = document.getElementById('footerShare');
+        if (!btn) return;
+        btn.addEventListener('click', () => {
+            window.CMS.shareUrl(C.actor ? C.actor.name : document.title).then(state => {
+                if (state === 'cancelled') return;
+                const original = btn.textContent;
+                if (state === 'copied' || state === 'failed') {
+                    btn.textContent = state === 'copied' ? '已复制 ✓' : '复制失败';
+                    setTimeout(() => { btn.textContent = original; }, 1800);
+                }
+            });
+        });
+    }
+
     async function init() {
         const app = document.getElementById('app');
         if (!app) return;
@@ -164,6 +180,7 @@
         bindNav();
         initHeroSplit();
         initDisclaimer();
+        initShare();
         initReveal();
         window.CMS.runHook('afterRender', { modules });
     }

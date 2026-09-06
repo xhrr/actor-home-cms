@@ -2023,3 +2023,25 @@ a.footer__credits-name:hover {
 .js .album-card__cover img.is-loaded {
     opacity: 1;
 }
+
+/* ---------- 分享按钮：写真/作品详情页标题行 + 页脚 ---------- */
+.album-detail__share,
+.footer__share {
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    opacity: .75;
+    transition: opacity .2s var(--ease-standard, ease);
+}
+
+.album-detail__share {
+    margin-left: auto;
+}
+
+.album-detail__share:hover,
+.footer__share:hover {
+    opacity: 1;
+}
