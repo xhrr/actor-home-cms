@@ -148,8 +148,8 @@
     function initShare() {
         // 海报地址：R2 图床外链（分享图上传自图床，横图 PC / 竖图手机）
         const SHARE_POSTERS = {
-            vertical: 'https://img.sglxq.cn/fw/mqq/2026/09/06/share-poster-vertical.webp',
-            horizontal: 'https://img.sglxq.cn/fw/mqq/2026/09/06/share-poster-horizontal.webp'
+            vertical: '/uploads/share-poster-vertical.webp',
+            horizontal: '/uploads/share-poster-horizontal.webp'
         };
         const btn = document.getElementById('footerShare');
         if (!btn) return;
