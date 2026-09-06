@@ -76,9 +76,33 @@
     }
 
     function setModuleVisible(type, enabled) {
-        const mod = findModule(type);
-        if (mod) mod.visible = !!enabled;
-        return mod;
+        const idx = (config.modules || []).findIndex(m => m.type === type);
+        if (idx < 0) return undefined;
+        config.modules[idx].visible = !!enabled;
+        // 双向同步两处勾选（分区开关 ↔ 模块管理卡片）：collectModules 会从卡片 DOM
+        // 重建整个数组，不同步的话分区开关的状态会在保存时被卡片旧勾选覆盖回去
+        const sectionInput = $(`#${type}-enabled`);
+        if (sectionInput && sectionInput.checked !== !!enabled) sectionInput.checked = !!enabled;
+        const cardInput = document.querySelector(`#modules-list [data-module-visible="${idx}"]`);
+        if (cardInput && cardInput.checked !== !!enabled) cardInput.checked = !!enabled;
+        return config.modules[idx];
+    }
+
+    // 启用开关旁的实时状态提示：空内容时站点渲染器不渲染板块，避免「启用了却没变化」的困惑
+    function updateEnableHint(type) {
+        const map = {
+            news: ['news-enabled', 'news-enabled-hint', 'actor-news'],
+            awards: ['awards-enabled', 'awards-enabled-hint', 'actor-awards'],
+            schedule: ['schedule-enabled', 'schedule-enabled-hint', 'actor-schedule']
+        }[type] || [];
+        const input = map[0] && $(map[0]);
+        const el = map[1] && $(map[1]);
+        if (!input || !el) return;
+        const data = (config.plugins && config.plugins.data && config.plugins.data[map[2]]) || {};
+        const count = (data.items || []).length;
+        if (!input.checked) el.textContent = '已停用：首页不显示此模块';
+        else if (!count) el.textContent = '已启用，但还没有内容条目——先在下方新增条目，首页才会显示';
+        else el.textContent = `已启用：首页按时间显示最新 ${count} 条`;
     }
 
     function renderActor() {
@@ -350,6 +374,7 @@
         const data = (config.plugins && config.plugins.data && config.plugins.data['actor-news']) || {};
         const newsEnabledInput = $('#news-enabled');
         if (newsEnabledInput) newsEnabledInput.checked = findModule('news') ? findModule('news').visible !== false : true;
+        updateEnableHint('news');
         $('#news-heading').value = data.heading || '';
         $('#news-list').innerHTML = (data.items || []).map((item, i) => {
             const src = [item.title, item.summary, item.date].join(' ').toLowerCase();
@@ -390,6 +415,7 @@
         const data = (config.plugins && config.plugins.data && config.plugins.data['actor-awards']) || {};
         const awardsEnabledInput = $('#awards-enabled');
         if (awardsEnabledInput) awardsEnabledInput.checked = findModule('awards') ? findModule('awards').visible !== false : true;
+        updateEnableHint('awards');
         $('#awards-heading').value = data.heading || '';
         $('#awards-list').innerHTML = (data.items || []).map((item, i) => {
             const src = [item.name, item.org, item.work, item.year].join(' ').toLowerCase();
@@ -435,6 +461,7 @@
         const data = (config.plugins && config.plugins.data && config.plugins.data['actor-schedule']) || {};
         const scheduleEnabledInput = $('#schedule-enabled');
         if (scheduleEnabledInput) scheduleEnabledInput.checked = findModule('schedule') ? findModule('schedule').visible !== false : true;
+        updateEnableHint('schedule');
         $('#schedule-heading').value = data.heading || '';
         $('#schedule-list').innerHTML = (data.items || []).map((item, i) => {
             const src = [item.event, item.city, item.date, item.sourceUrl].join(' ').toLowerCase();
@@ -626,17 +653,24 @@
         const container = $('#plugins-list');
         if (!container) return;
         const enabled = (config.plugins && config.plugins.enabled) || [];
+        // 重渲染前记住展开状态（启用/停用插件后不收起已展开的卡片）
+        const expandedBefore = new Set(Array.from(container.querySelectorAll('.plugin-card:not(.is-collapsed)')).map(c => c.dataset.plugin));
 
         container.innerHTML = pluginList.map(plugin => {
             const isEnabled = enabled.includes(plugin.name);
             const panel = panels[plugin.name];
             const data = (config.plugins && config.plugins.data && config.plugins.data[plugin.name]) || {};
+            // 带面板的插件卡片可折叠：默认收起，点击标题行展开配置
+            const foldable = !!(panel && isEnabled && !DEDICATED_PLUGIN_NAMES.includes(plugin.name));
+            const folded = foldable && !expandedBefore.has(plugin.name);
             return `
-                <div class="plugin-card" data-plugin="${plugin.name}">
-                    <div class="plugin-card__header">
+                <div class="plugin-card${folded ? ' is-collapsed' : ''}" data-plugin="${plugin.name}">
+                    <div class="plugin-card__header${foldable ? ' is-toggle' : ''}"${foldable ? ' data-toggle-item title="点击展开/收起配置"' : ''}>
                         <h4 class="plugin-card__title">${window.AdminCMS.esc(plugin.manifest.label || plugin.name)} <small>${window.AdminCMS.esc(plugin.manifest.version || '')}</small></h4>
+                        ${foldable ? '<span class="collapse-chevron">▾</span>' : ''}
                         <button class="btn btn--sm" data-toggle-plugin="${plugin.name}">${isEnabled ? '停用' : '启用'}</button>
                     </div>
+                    ${foldable ? '<div class="plugin-card__body">' : ''}
                     <p class="plugin-card__desc">${window.AdminCMS.esc(plugin.manifest.description || '')}</p>
                     ${panel && isEnabled && !DEDICATED_PLUGIN_NAMES.includes(plugin.name) ? `
                         <div class="plugin-panel" data-plugin-panel="${plugin.name}">
@@ -649,6 +683,7 @@
                     ` : ''}
                     ${isEnabled && DEDICATED_PLUGIN_NAMES.includes(plugin.name) ? `<p class="plugin-card__desc">该插件内容请在左侧「${plugin.manifest.label || ''}」分区编辑。</p>` : ''}
                     ${isEnabled && !panel && !DEDICATED_PLUGIN_NAMES.includes(plugin.name) ? `<p class="plugin-card__desc">该插件没有提供后台面板，仍可通过 JSON 数据文件管理。</p>` : ''}
+                    ${foldable ? '</div>' : ''}
                 </div>
             `;
         }).join('');
@@ -1500,7 +1535,7 @@
         document.addEventListener('click', e => {
             const head = e.target.closest('[data-toggle-item]');
             if (!head || e.target.closest('button')) return;
-            const item = head.closest('.admin-content-item, .admin-work-item, .admin-album-item');
+            const item = head.closest('.admin-content-item, .admin-work-item, .admin-album-item, .plugin-card');
             if (item) item.classList.toggle('is-collapsed');
         });
 
@@ -1768,6 +1803,24 @@
             const ai = parseInt(btn.dataset.removeAlbum);
             config.gallery.albums.splice(ai, 1);
             renderGallery();
+        });
+
+        // 启用开关切换：立即写入配置 + 同步另一处勾选 + 更新状态提示（未保存也可见）
+        ['news', 'awards', 'schedule'].forEach(type => {
+            const input = $(`#${type}-enabled`);
+            if (input) input.addEventListener('change', () => {
+                setModuleVisible(type, input.checked);
+                updateEnableHint(type);
+            });
+        });
+        // 模块管理卡片的显示勾选同样立即生效
+        $('#modules-list').addEventListener('change', e => {
+            if (!e.target.matches('[data-module-visible]')) return;
+            const idx = parseInt(e.target.dataset.moduleVisible);
+            const mod = (config.modules || [])[idx];
+            if (!mod) return;
+            setModuleVisible(mod.type, e.target.checked);
+            if (['news', 'awards', 'schedule'].includes(mod.type)) updateEnableHint(mod.type);
         });
 
         // 动态

@@ -216,20 +216,25 @@ function aiConfig(cfg) {
 
 function buildPrompt(type, board, title, imageCount) {
     const spec = {
-        works: 'category=题材分类（电视剧/短剧/电影/影游之一）、title=作品名、role=饰演角色、year=上映时间、director=导演、synopsis=一句话简介',
-        album: 'title=写真集标题、author=摄影师或来源作者',
-        news: 'date=日期、title=动态标题、summary=一句话摘要',
-        awards: 'year=获奖年份、name=奖项名称、org=颁奖方、work=关联作品',
-        schedule: 'date=日期、city=城市、event=活动事项'
-    }[type] || 'title=标题';
-    return `你是内容录入助手。QQ 频道「${board}」版块的新帖子将录入为「${type}」类型的内容。
-只从帖子正文提取信息，输出一个 JSON 对象，字段：${spec}。
-要求：
-1. 正文没有的字段一律输出空字符串，不要编造。
-2. title 要干净：去掉链接（及其"链接:"前缀）、@提及、"原作者:"标注、表情与多余空白后取主体文案，不超过 20 字。
-3. author 从「原作者:xxx」或正文署名提取；没有则空字符串。
-4. 日期类字段只有年份输出 YYYY，只有年月输出 YYYY.MM。
-5. 只输出 JSON，不要解释或代码块标记。
+        works: 'category：题材分类，只能填「电视剧/短剧/电影/影游」之一，正文无明确依据则填空串；title：作品名；role：饰演角色；year：上映年份；director：导演；synopsis：一句话剧情简介，不超过 50 字',
+        album: 'title：写真/图集标题；author：摄影师或内容创作者',
+        news: 'date：动态日期；title：动态标题；summary：一句话摘要，不超过 40 字',
+        awards: 'year：获奖年份；name：奖项名称；org：颁奖方；work：关联作品名',
+        schedule: 'date：活动日期；city：城市；event：活动事项'
+    }[type] || 'title：标题';
+    return `你是内容录入助手。把 QQ 频道「${board}」版块的帖子整理成「${type}」类型的结构化数据。
+只依据帖子正文提取，输出一个 JSON 对象，键只能是：${(TYPE_FIELDS[type] || ['title']).join('、')}。
+字段含义：${spec}。
+规则：
+1. 正文没有的信息一律输出空字符串，禁止编造；年份、日期等数字必须照抄正文，不得推算。
+2. title 是给站点展示的干净标题：去掉链接及其「链接:」前缀、@提及、「原作者:」标注、「请关注XX」类应援话术、表情、话题标签和多余空白，保留主体文案，不超过 20 字。
+3. author 只取内容创作者署名（如「原作者:xxx」）；「请关注XX」中的 XX 是被应援的艺人，不是 author。
+4. 日期类字段格式：只有年份用 YYYY，有月份用 YYYY.MM，有具体日期用 YYYY.MM.DD。
+5. 除 JSON 本体外不输出任何内容（无解释、无代码块标记）。
+
+示例（album）——帖子正文「原作者:杉果派 想不出文案了，就这样吧 请关注马倩倩老师 链接: https://v.douyin.com/xxx」应输出：
+{"title":"想不出文案了，就这样吧","author":"杉果派"}
+
 帖子标题：${title}
 帖子附带图片 ${imageCount} 张（图片不参与解析）。`;
 }

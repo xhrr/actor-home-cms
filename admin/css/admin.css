@@ -1087,3 +1087,15 @@ a { text-decoration: none; color: inherit; }
     font-size: 0.78rem;
     color: var(--color-text-light);
 }
+
+/* ========== 插件管理：带面板的插件卡片折叠 ========== */
+.plugin-card.is-collapsed > .plugin-card__body {
+    display: none;
+}
+.plugin-card__header.is-toggle {
+    cursor: pointer;
+    user-select: none;
+}
+.plugin-card__header.is-toggle:hover .plugin-card__title {
+    color: var(--color-accent-hover);
+}
