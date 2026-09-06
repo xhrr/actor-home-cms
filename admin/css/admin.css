@@ -1141,3 +1141,26 @@ a { text-decoration: none; color: inherit; }
     white-space: pre-wrap;
     word-break: break-word;
 }
+
+/* ===== 评论管理：分组折叠 ===== */
+.comment-admin__page-head {
+    cursor: pointer;
+    user-select: none;
+    gap: .5rem;
+}
+.comment-admin__page-head strong {
+    flex: 1;
+    min-width: 0;
+}
+.comment-admin__chevron {
+    display: inline-block;
+    font-size: .8em;
+    color: var(--color-text-muted);
+    transition: transform var(--dur-fast, 180ms) var(--ease-standard, ease);
+}
+.comment-admin__page.is-collapsed .comment-admin__chevron {
+    transform: rotate(-90deg);
+}
+.comment-admin__page.is-collapsed .comment-admin__row {
+    display: none;
+}

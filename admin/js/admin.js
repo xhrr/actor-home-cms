@@ -1604,6 +1604,17 @@
             const mods = [];
             (config.modules || []).forEach((m, i) => { if (m.type) mods.push({ key: String(i), disp: '模块 ' + m.type }); });
             add('模块', 'modules', mods);
+            // 评论（昵称 + 内容 + 所属页面名都可命中，key = pageKey|commentId）
+            const commentEntries = [];
+            Object.entries(config.comments || {}).forEach(([pk, list]) => {
+                if (!Array.isArray(list)) return;
+                const label = commentPageLabel(pk);
+                list.forEach(c => {
+                    if (!c || !c.id) return;
+                    commentEntries.push({ key: pk + '|' + c.id, disp: label + ' · ' + (c.n || '马铃薯') + '：' + (c.t || '') });
+                });
+            });
+            add('评论', 'comments', commentEntries);
             return groups;
         };
 
@@ -1620,7 +1631,7 @@
             gr.style.display = 'block';
         });
 
-        gr.addEventListener('click', e => {
+        gr.addEventListener('click', async e => {
             const btn = e.target.closest('[data-goto]');
             if (!btn) return;
             const section = btn.dataset.goto;
@@ -1637,11 +1648,14 @@
                 const s = document.querySelector('.sidebar__link[data-section="footer"]');
                 if (s) s.click();
             }
+            // 评论管理为异步渲染：等列表就绪后再定位（渲染有序号守卫，与侧边栏触发的渲染并发安全）
+            if (section === 'comments') await renderCommentsAdmin();
             // 应用分区过滤
             const f = document.querySelector('[data-filter-for="' + section + '"]');
             if (f) { f.value = q; f.dispatchEvent(new Event('input')); }
             // 定位并展开目标条目
-            const row = section === 'works' ? document.querySelector('[data-work-key="' + key + '"]')
+            const row = section === 'comments' ? document.querySelector('[data-comment-key="' + key + '"]')
+                : section === 'works' ? document.querySelector('[data-work-key="' + key + '"]')
                 : section === 'gallery' ? document.querySelector('[data-album-index="' + key + '"]')
                 : section === 'schedule-ann' ? document.querySelector('[data-announcement-index="' + key + '"]')
                 : section === 'social' ? document.querySelector('#social-list [data-index="' + key + '"]')
@@ -1652,6 +1666,7 @@
                 : section === 'awards' ? document.querySelector('#awards-list [data-index="' + key + '"]')
                 : document.querySelector('#schedule-list [data-index="' + key + '"]');
             if (row) {
+                if (section === 'comments') expandCommentPage(row.closest('.comment-admin__page'));
                 row.classList.remove('is-collapsed');
                 row.style.display = '';
                 row.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1672,13 +1687,54 @@
        =================================================================== */
 
     let commentsAdminState = { enabled: true };
+    let commentRenderSeq = 0;
+
+    /* 折叠状态（localStorage 记忆，跨重渲染/会话保持） */
+    const COLLAPSED_KEY = 'comment-admin-collapsed';
+    function getCollapsedPages() {
+        try { return new Set(JSON.parse(localStorage.getItem(COLLAPSED_KEY) || '[]')); } catch (e) { return new Set(); }
+    }
+    function saveCollapsedPages(set) {
+        try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...set])); } catch (e) { /* 隐私模式 */ }
+    }
+    function toggleCommentPage(pageEl) {
+        if (!pageEl) return;
+        const key = pageEl.dataset.commentPage;
+        const set = getCollapsedPages();
+        if (pageEl.classList.toggle('is-collapsed')) set.add(key); else set.delete(key);
+        saveCollapsedPages(set);
+    }
+    function expandCommentPage(pageEl) {
+        if (pageEl && pageEl.classList.contains('is-collapsed')) toggleCommentPage(pageEl);
+    }
+
+    /* 展示键 → 友好名称（与后端 /api/comments/admin 同口径，供全局搜索使用） */
+    function commentPageLabel(pageKey) {
+        if (pageKey === 'news') return '最新动态';
+        let m = pageKey.match(/^album-([A-Za-z0-9_-]{1,32})$/);
+        if (m) {
+            const a = ((config.gallery && config.gallery.albums) || []).find(x => x.id === m[1]);
+            return a && a.title ? '写真集「' + a.title + '」' : '写真集 ' + m[1];
+        }
+        m = pageKey.match(/^work-([A-Za-z0-9_-]{1,32})$/);
+        if (m) {
+            for (const cat of (config.works && config.works.categories) || []) {
+                const hit = (cat.items || []).find(x => x.id === m[1]);
+                if (hit) return '作品「' + (hit.title || m[1]) + '」';
+            }
+            return '作品 ' + m[1];
+        }
+        return pageKey;
+    }
 
     async function renderCommentsAdmin() {
+        const seq = ++commentRenderSeq; // 并发渲染守卫：慢响应不得覆盖新结果
         const listEl = $('#comments-admin-list');
         const btn = $('#btn-toggle-comments');
         const status = $('#comments-switch-status');
         try {
             const data = await (await fetch('/api/comments/admin')).json();
+            if (seq !== commentRenderSeq) return;
             commentsAdminState.enabled = !!(data.settings && data.settings.enabled);
             if (btn) btn.textContent = commentsAdminState.enabled ? '一键关闭评论' : '一键开启评论';
             if (status) status.textContent = commentsAdminState.enabled ? '当前：已启用' : '当前：已关闭（数据保留）';
@@ -1690,14 +1746,16 @@
                 return;
             }
             const total = pages.reduce((n, p) => n + (p.count || 0), 0);
+            const collapsed = getCollapsedPages();
             listEl.innerHTML = pages.map(p => `
-                <div class="comment-admin__page">
-                    <div class="comment-admin__page-head">
+                <div class="comment-admin__page${collapsed.has(p.key) ? ' is-collapsed' : ''}" data-comment-page="${esc(p.key)}">
+                    <div class="comment-admin__page-head" data-page-toggle="${esc(p.key)}" title="点击折叠 / 展开">
+                        <span class="comment-admin__chevron">▾</span>
                         <strong>${esc(p.label)}</strong>
                         <span class="comment-admin__key">${esc(p.key)} · ${p.count} 条</span>
                     </div>
                     ${p.comments.map(c => `
-                        <div class="comment-admin__row">
+                        <div class="comment-admin__row" data-comment-key="${esc(p.key)}|${esc(c.id)}">
                             <div class="comment-admin__row-main">
                                 <span class="comment-admin__meta">${esc(c.n || '马铃薯')} · ${esc(c.d)}${c.replyTo ? ' · 回复 ' + esc(c.replyTo) : ''}</span>
                                 <p class="comment-admin__text">${esc(c.t)}</p>
@@ -1706,8 +1764,9 @@
                         </div>
                     `).join('')}
                 </div>
-            `).join('') + `<p class="form-help" style="margin-top:0.75rem">共 ${pages.length} 个页面 / ${total} 条评论。删除后前台随下次导出生效。</p>`;
+            `).join('') + `<p class="form-help" style="margin-top:0.75rem">共 ${pages.length} 个页面 / ${total} 条评论。点击分组标题可折叠；删除后前台随下次导出生效。</p>`;
         } catch (e) {
+            if (seq !== commentRenderSeq) return;
             if (listEl) listEl.innerHTML = `<p class="form-help">加载失败：${window.AdminCMS.esc(e.message)}</p>`;
         }
     }
@@ -1741,6 +1800,12 @@
         const list = $('#comments-admin-list');
         if (list) {
             list.addEventListener('click', async e => {
+                // 分组标题：折叠 / 展开
+                const head = e.target.closest('[data-page-toggle]');
+                if (head) {
+                    toggleCommentPage(head.closest('.comment-admin__page'));
+                    return;
+                }
                 const del = e.target.closest('[data-comment-del]');
                 if (!del) return;
                 const [page, id] = del.dataset.commentDel.split('|');

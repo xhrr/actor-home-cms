@@ -2337,3 +2337,30 @@ a.footer__credits-name:hover {
     font-size: .78rem;
     color: var(--fg-40);
 }
+
+/* 移动端：发布行折行——昵称+发布一行，回复指示条独占一行（防止被挤成一字一行的竖排） */
+@media (max-width: 640px) {
+    .comments__form-row {
+        flex-wrap: wrap;
+        row-gap: .55rem;
+        column-gap: .8rem;
+    }
+    .comments__form-row .comments__input {
+        order: 1;
+        flex: 1 1 12rem;
+        min-width: 0;
+    }
+    .comments__submit {
+        order: 2;
+        padding: .6rem 1.3rem;
+    }
+    .comments__replying {
+        order: 3;
+        flex: 1 1 100%;
+        padding: .3rem 0;
+    }
+    .comment__head {
+        flex-wrap: wrap;
+        row-gap: .2rem;
+    }
+}
