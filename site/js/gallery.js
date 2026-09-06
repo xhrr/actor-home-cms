@@ -143,18 +143,11 @@
 
     let gallerySearchQuery = '';
 
-    /** 分享按钮绑定：点击后按结果给文字反馈（原生分享成功无需反馈） */
-    function bindShareButton(btn, title) {
+    /** 详情页分享入口：打开分享弹层（二维码 + 卡片图 + 复制链接） */
+    function bindShareButton(btn, title, image) {
         if (!btn) return;
         btn.addEventListener('click', () => {
-            window.CMS.shareUrl(title).then(state => {
-                if (state === 'cancelled') return;
-                const original = btn.textContent;
-                if (state === 'copied' || state === 'failed') {
-                    btn.textContent = state === 'copied' ? '已复制 ✓' : '复制失败';
-                    setTimeout(() => { btn.textContent = original; }, 1800);
-                }
-            });
+            window.CMS.openShareModal({ title, image: image || '' });
         });
     }
 
@@ -363,7 +356,9 @@
                     <a class="hover-underline" href="/gallery.html">← 返回写真集</a>
                     <h1 class="album-detail__title">${esc(album.title || ('写真集 ' + (ai + 1)))}</h1>
                     <span class="album-detail__count">${images.length} 张</span>
-                    <button type="button" class="album-detail__share hover-underline" id="albumShare">分享</button>
+                    <button type="button" class="album-detail__share" id="albumShare" aria-label="分享" title="分享">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.4 13.3l7.2 4.2M15.6 6.5L8.4 10.7"/></svg>
+                    </button>
                 </div>
                 ${(album.author || source) ? `
                     <div class="album-detail__meta">
@@ -373,7 +368,7 @@
                 ` : ''}
             `;
         }
-        bindShareButton(document.getElementById('albumShare'), album.title || '写真集');
+        bindShareButton(document.getElementById('albumShare'), album.title || '写真集', album.cover || (album.images || [])[0]);
 
         if (!images.length) {
             grid.innerHTML = '<p class="gallery-page__empty">这个写真集还没有照片</p>';
@@ -409,7 +404,9 @@
                     <a class="hover-underline" href="/works.html">← 返回作品</a>
                     <h1 class="album-detail__title">${esc(work ? work.title : '作品图集')}</h1>
                     <span class="album-detail__count">${images.length} 张</span>
-                    <button type="button" class="album-detail__share hover-underline" id="workShare">分享</button>
+                    <button type="button" class="album-detail__share" id="workShare" aria-label="分享" title="分享">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.4 13.3l7.2 4.2M15.6 6.5L8.4 10.7"/></svg>
+                    </button>
                 </div>
                 ${work ? `
                     <div class="work-detail">
@@ -423,7 +420,7 @@
                 ` : ''}
             `;
         }
-        bindShareButton(document.getElementById('workShare'), work ? work.title : '作品图集');
+        bindShareButton(document.getElementById('workShare'), work ? work.title : '作品图集', images[0] || (work && (work.poster || work.image)) || '');
 
         if (!images.length) {
             grid.innerHTML = '<p class="gallery-page__empty">这个作品还没有剧照</p>';

@@ -267,7 +267,7 @@
         return links;
     }
 
-    /* ---------- 分享：原生分享面板优先，降级复制链接 ---------- */
+    /* ---------- 分享弹层：二维码 + 卡片图 + 复制链接 ---------- */
 
     function legacyCopy(text) {
         const ta = document.createElement('textarea');
@@ -289,17 +289,65 @@
         return Promise.resolve(legacyCopy(text));
     }
 
-    /** 分享当前页：支持 Web Share API 的浏览器拉起原生面板；不支持时降级复制链接。
-     * 返回 'shared' | 'copied' | 'cancelled' | 'failed'，供按钮做文字反馈。 */
-    function shareUrl(title) {
-        const url = window.location.href;
-        if (navigator.share) {
-            return navigator.share({ title: title || document.title, url: url }).then(() => 'shared').catch(err => {
-                if (err && err.name === 'AbortError') return 'cancelled';
-                return copyToClipboard(url).then(ok => (ok ? 'copied' : 'failed'));
+    function closeShareModal() {
+        const m = document.getElementById('shareModal');
+        if (!m) return;
+        m.classList.remove('is-open');
+        document.body.style.overflow = '';
+    }
+
+    function ensureShareModal() {
+        let m = document.getElementById('shareModal');
+        if (m) return m;
+        m = document.createElement('div');
+        m.id = 'shareModal';
+        m.className = 'share-modal';
+        m.innerHTML = `
+            <div class="share-modal__backdrop"></div>
+            <div class="share-modal__card" role="dialog" aria-modal="true" aria-label="分享">
+                <button type="button" class="share-modal__close" aria-label="关闭">×</button>
+                <p class="share-modal__eyebrow">SHARE</p>
+                <div class="share-modal__qr"></div>
+                <img class="share-modal__image" alt="" onerror="this.style.display='none'">
+                <p class="share-modal__title"></p>
+                <button type="button" class="share-modal__copy">复制链接</button>
+            </div>`;
+        document.body.appendChild(m);
+        m.querySelector('.share-modal__backdrop').addEventListener('click', closeShareModal);
+        m.querySelector('.share-modal__close').addEventListener('click', closeShareModal);
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') closeShareModal(); });
+        m.querySelector('.share-modal__copy').addEventListener('click', () => {
+            const btn = m.querySelector('.share-modal__copy');
+            copyToClipboard(m.dataset.url || window.location.href).then(ok => {
+                btn.textContent = ok ? '已复制 ✓' : '复制失败';
+                setTimeout(() => { btn.textContent = '复制链接'; }, 1600);
             });
-        }
-        return copyToClipboard(url).then(ok => (ok ? 'copied' : 'failed'));
+        });
+        return m;
+    }
+
+    /** 打开分享弹层：opts = { title, image, url }。
+     * 二维码由自托管 qrcode-generator（js/vendor/qrcode.js）按需加载现场生成 */
+    function openShareModal(opts) {
+        opts = opts || {};
+        const m = ensureShareModal();
+        const url = opts.url || window.location.href;
+        m.dataset.url = url;
+        m.querySelector('.share-modal__title').textContent = opts.title || document.title;
+        const img = m.querySelector('.share-modal__image');
+        if (opts.image) { img.src = opts.image; img.style.display = ''; } else { img.removeAttribute('src'); img.style.display = 'none'; }
+        const qrBox = m.querySelector('.share-modal__qr');
+        qrBox.innerHTML = '';
+        window.CMS.loadScript('/js/vendor/qrcode.js').then(() => {
+            try {
+                const qr = window.qrcode(0, 'M');
+                qr.addData(url);
+                qr.make();
+                qrBox.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 0 });
+            } catch (e) { qrBox.textContent = url; }
+        }).catch(() => { qrBox.textContent = url; });
+        m.classList.add('is-open');
+        document.body.style.overflow = 'hidden';
     }
 
     window.CMS = {
@@ -314,7 +362,7 @@
         buildNavLinks,
         initNavShell,
         revealNow,
-        shareUrl,
+        openShareModal,
         utils: {
             esc,
             cleanUrl,

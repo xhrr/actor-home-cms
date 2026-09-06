@@ -144,18 +144,14 @@
         targets.forEach(el => io.observe(el));
     }
 
-    /** 页脚分享按钮：原生分享面板优先，降级复制链接并给文字反馈 */
+    /** 页脚分享图标：打开分享弹层（二维码 + 卡片图 + 复制链接） */
     function initShare() {
         const btn = document.getElementById('footerShare');
         if (!btn) return;
         btn.addEventListener('click', () => {
-            window.CMS.shareUrl(C.actor ? C.actor.name : document.title).then(state => {
-                if (state === 'cancelled') return;
-                const original = btn.textContent;
-                if (state === 'copied' || state === 'failed') {
-                    btn.textContent = state === 'copied' ? '已复制 ✓' : '复制失败';
-                    setTimeout(() => { btn.textContent = original; }, 1800);
-                }
+            window.CMS.openShareModal({
+                title: (C.actor && C.actor.name ? C.actor.name : '') + '应援站',
+                image: (C.hero && C.hero.image) || (C.actor && C.actor.cover) || ''
             });
         });
     }

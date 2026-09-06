@@ -393,7 +393,9 @@ window.CMS.registerModule('hero', function (mod) {
         <p class="footer__brand">${esc((C.actor && C.actor.nameEn) || '')}</p>
         <div class="footer__social">
             ${links.map(l => `<a href="${safeUrl(l.url, 'link') || '#'}" target="_blank" rel="noopener noreferrer">${esc(l.name)}</a>`).join('')}
-            <button type="button" class="footer__share hover-underline" id="footerShare">分享本站</button>
+            <button type="button" class="footer__share" id="footerShare" aria-label="分享本站" title="分享本站">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.4 13.3l7.2 4.2M15.6 6.5L8.4 10.7"/></svg>
+            </button>
         </div>
         <p class="footer__copy">${parts.join('<span class="footer__copy-sep"> · </span>')}</p>
     </div>

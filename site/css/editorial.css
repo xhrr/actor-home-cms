@@ -2024,16 +2024,17 @@ a.footer__credits-name:hover {
     opacity: 1;
 }
 
-/* ---------- 分享按钮：写真/作品详情页标题行 + 页脚 ---------- */
+/* ---------- 分享：详情页/页脚图标按钮 + 分享弹层（二维码 + 卡片图） ---------- */
 .album-detail__share,
 .footer__share {
+    display: inline-flex;
+    align-items: center;
     background: none;
     border: none;
     padding: 0;
-    font: inherit;
     color: inherit;
     cursor: pointer;
-    opacity: .75;
+    opacity: .7;
     transition: opacity .2s var(--ease-standard, ease);
 }
 
@@ -2044,4 +2045,109 @@ a.footer__credits-name:hover {
 .album-detail__share:hover,
 .footer__share:hover {
     opacity: 1;
+}
+
+.share-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+
+.share-modal.is-open {
+    display: flex;
+}
+
+.share-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(20, 17, 13, .45);
+}
+
+.share-modal__card {
+    position: relative;
+    z-index: 1;
+    width: min(300px, calc(100vw - 3rem));
+    max-height: calc(100vh - 3rem);
+    overflow: auto;
+    padding: 1.75rem 1.75rem 1.5rem;
+    background: #fff;
+    border: 1px solid rgba(20, 17, 13, .12);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .8rem;
+    text-align: center;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity .25s var(--ease-standard, ease), transform .25s var(--ease-standard, ease);
+}
+
+.share-modal.is-open .share-modal__card {
+    opacity: 1;
+    transform: none;
+}
+
+.share-modal__eyebrow {
+    margin: 0;
+    font-size: .72rem;
+    letter-spacing: .3em;
+    color: var(--fg-60, #9a938a);
+}
+
+.share-modal__qr {
+    width: 148px;
+    height: 148px;
+    padding: 8px;
+    background: #fff;
+    border: 1px solid rgba(20, 17, 13, .14);
+    font-size: 0;
+}
+
+.share-modal__qr svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.share-modal__image {
+    width: 100%;
+    height: 140px;
+    object-fit: cover;
+}
+
+.share-modal__title {
+    margin: 0;
+    font-size: .95rem;
+    line-height: 1.5;
+    color: var(--fg, #26221d);
+}
+
+.share-modal__copy,
+.share-modal__close {
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    cursor: pointer;
+    color: var(--fg-60, #9a938a);
+}
+
+.share-modal__copy {
+    font-size: .85rem;
+    letter-spacing: .15em;
+}
+
+.share-modal__copy:hover {
+    color: var(--fg, #26221d);
+}
+
+.share-modal__close {
+    position: absolute;
+    top: .4rem;
+    right: .7rem;
+    font-size: 1.15rem;
+    line-height: 1;
 }
