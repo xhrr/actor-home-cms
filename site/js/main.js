@@ -146,12 +146,17 @@
 
     /** 页脚分享图标：打开分享弹层（二维码 + 卡片图 + 复制链接） */
     function initShare() {
+        // 海报地址：R2 图床外链（分享图上传自图床，横图 PC / 竖图手机）
+        const SHARE_POSTERS = {
+            vertical: 'https://img.sglxq.cn/fw/mqq/2026/09/06/share-poster-vertical.webp',
+            horizontal: 'https://img.sglxq.cn/fw/mqq/2026/09/06/share-poster-horizontal.webp'
+        };
         const btn = document.getElementById('footerShare');
         if (!btn) return;
         btn.addEventListener('click', () => {
             window.CMS.openShareModal({
-                title: (C.actor && C.actor.name ? C.actor.name : '') + '应援站',
-                image: (C.hero && C.hero.image) || (C.actor && C.actor.cover) || ''
+                posterVertical: SHARE_POSTERS.vertical,
+                posterHorizontal: SHARE_POSTERS.horizontal
             });
         });
     }

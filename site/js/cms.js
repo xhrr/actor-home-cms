@@ -307,10 +307,12 @@
             <div class="share-modal__card" role="dialog" aria-modal="true" aria-label="分享">
                 <button type="button" class="share-modal__close" aria-label="关闭">×</button>
                 <p class="share-modal__eyebrow">SHARE</p>
-                <div class="share-modal__qr"></div>
-                <img class="share-modal__image" alt="" onerror="this.style.display='none'">
-                <p class="share-modal__title"></p>
-                <button type="button" class="share-modal__copy">复制链接</button>
+                <div class="share-modal__poster"></div>
+                <p class="share-modal__hint">海报生成中…</p>
+                <div class="share-modal__actions">
+                    <button type="button" class="share-modal__download">保存图片</button>
+                    <button type="button" class="share-modal__copy">复制链接</button>
+                </div>
             </div>`;
         document.body.appendChild(m);
         m.querySelector('.share-modal__backdrop').addEventListener('click', closeShareModal);
@@ -326,26 +328,61 @@
         return m;
     }
 
-    /** 打开分享弹层：opts = { title, image, url }。
-     * 二维码由自托管 qrcode-generator（js/vendor/qrcode.js）按需加载现场生成 */
+    function loadImage(src) {
+        return new Promise((resolve, reject) => {
+            const im = new Image();
+            im.onload = () => resolve(im);
+            im.onerror = () => reject(new Error('image load failed'));
+            im.src = src;
+        });
+    }
+
+    /** 打开分享弹层：按屏幕横竖选择站长预制的分享海报（二维码已烙入图中），一键保存。
+     * opts = { posterVertical, posterHorizontal }，缺省时仅保留复制链接 */
     function openShareModal(opts) {
         opts = opts || {};
         const m = ensureShareModal();
-        const url = opts.url || window.location.href;
-        m.dataset.url = url;
-        m.querySelector('.share-modal__title').textContent = opts.title || document.title;
-        const img = m.querySelector('.share-modal__image');
-        if (opts.image) { img.src = opts.image; img.style.display = ''; } else { img.removeAttribute('src'); img.style.display = 'none'; }
-        const qrBox = m.querySelector('.share-modal__qr');
-        qrBox.innerHTML = '';
-        window.CMS.loadScript('/js/vendor/qrcode.js').then(() => {
-            try {
-                const qr = window.qrcode(0, 'M');
-                qr.addData(url);
-                qr.make();
-                qrBox.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 0 });
-            } catch (e) { qrBox.textContent = url; }
-        }).catch(() => { qrBox.textContent = url; });
+        m.dataset.url = opts.url || window.location.href;
+        const portrait = window.innerHeight >= window.innerWidth;
+        const poster = portrait ? opts.posterVertical : opts.posterHorizontal;
+        const box = m.querySelector('.share-modal__poster');
+        box.innerHTML = '';
+        const hint = m.querySelector('.share-modal__hint');
+        const dl = m.querySelector('.share-modal__download');
+        hint.textContent = '';
+        if (poster) {
+            loadImage(poster).then(() => {
+                const im = document.createElement('img');
+                im.src = poster;
+                im.alt = '分享海报';
+                box.appendChild(im);
+                dl.style.display = '';
+                // 海报可能放在跨域图床：优先 fetch→blob 直接下载，受限时新标签打开（长按/右键另存）
+                dl.onclick = () => {
+                    const name = 'share-poster-' + (portrait ? 'vertical' : 'horizontal') + (poster.match(/\.\w+$/) || ['.jpg'])[0];
+                    fetch(poster, { mode: 'cors' }).then(r => {
+                        if (!r.ok) throw new Error('http ' + r.status);
+                        return r.blob();
+                    }).then(blob => {
+                        const a = document.createElement('a');
+                        a.href = URL.createObjectURL(blob);
+                        a.download = name;
+                        document.body.appendChild(a);
+                        a.click();
+                        a.remove();
+                        setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+                    }).catch(() => {
+                        window.open(poster, '_blank');
+                    });
+                };
+            }).catch(() => {
+                hint.textContent = '海报加载失败，可直接复制链接';
+                dl.style.display = 'none';
+            });
+        } else {
+            dl.style.display = 'none';
+            hint.textContent = '未配置分享海报，可直接复制链接';
+        }
         m.classList.add('is-open');
         document.body.style.overflow = 'hidden';
     }
@@ -363,6 +400,7 @@
         initNavShell,
         revealNow,
         openShareModal,
+        copyToClipboard,
         utils: {
             esc,
             cleanUrl,

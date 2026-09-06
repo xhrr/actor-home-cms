@@ -143,11 +143,15 @@
 
     let gallerySearchQuery = '';
 
-    /** 详情页分享入口：打开分享弹层（二维码 + 卡片图 + 复制链接） */
-    function bindShareButton(btn, title, image) {
+    /** 详情页分享入口：复制链接（不生成海报） */
+    function bindShareButton(btn) {
         if (!btn) return;
         btn.addEventListener('click', () => {
-            window.CMS.openShareModal({ title, image: image || '' });
+            window.CMS.copyToClipboard(window.location.href).then(ok => {
+                const original = btn.innerHTML;
+                btn.innerHTML = ok ? '已复制 ✓' : '复制失败';
+                setTimeout(() => { btn.innerHTML = original; }, 1800);
+            });
         });
     }
 
@@ -356,7 +360,7 @@
                     <a class="hover-underline" href="/gallery.html">← 返回写真集</a>
                     <h1 class="album-detail__title">${esc(album.title || ('写真集 ' + (ai + 1)))}</h1>
                     <span class="album-detail__count">${images.length} 张</span>
-                    <button type="button" class="album-detail__share" id="albumShare" aria-label="分享" title="分享">
+                    <button type="button" class="album-detail__share" id="albumShare" aria-label="复制链接" title="复制链接">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.4 13.3l7.2 4.2M15.6 6.5L8.4 10.7"/></svg>
                     </button>
                 </div>
@@ -368,7 +372,7 @@
                 ` : ''}
             `;
         }
-        bindShareButton(document.getElementById('albumShare'), album.title || '写真集', album.cover || (album.images || [])[0]);
+        bindShareButton(document.getElementById('albumShare'));
 
         if (!images.length) {
             grid.innerHTML = '<p class="gallery-page__empty">这个写真集还没有照片</p>';
@@ -404,7 +408,7 @@
                     <a class="hover-underline" href="/works.html">← 返回作品</a>
                     <h1 class="album-detail__title">${esc(work ? work.title : '作品图集')}</h1>
                     <span class="album-detail__count">${images.length} 张</span>
-                    <button type="button" class="album-detail__share" id="workShare" aria-label="分享" title="分享">
+                    <button type="button" class="album-detail__share" id="workShare" aria-label="复制链接" title="复制链接">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.4 13.3l7.2 4.2M15.6 6.5L8.4 10.7"/></svg>
                     </button>
                 </div>
@@ -420,7 +424,7 @@
                 ` : ''}
             `;
         }
-        bindShareButton(document.getElementById('workShare'), work ? work.title : '作品图集', images[0] || (work && (work.poster || work.image)) || '');
+        bindShareButton(document.getElementById('workShare'));
 
         if (!images.length) {
             grid.innerHTML = '<p class="gallery-page__empty">这个作品还没有剧照</p>';
