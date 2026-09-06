@@ -10,7 +10,8 @@ const TYPE_ALIASES = {
     album: 'album', 写真: 'album', 写真集: 'album',
     news: 'news', 动态: 'news',
     awards: 'awards', 荣誉: 'awards', 奖项: 'awards',
-    schedule: 'schedule', 行程: 'schedule'
+    schedule: 'schedule', 行程: 'schedule',
+    comment: 'comment', 评论: 'comment', 留言: 'comment'
 };
 
 function parseIssueBody(body) {
@@ -98,9 +99,29 @@ function normalizeRepo(repo) {
     return r;
 }
 
-function applyIssueToConfig(config, parsed) {
+function applyIssueToConfig(config, parsed, issueNumber) {
     const type = normalizeType(parsed.type);
     if (!type) throw new Error('未知 type: ' + parsed.type);
+
+    if (type === 'comment') {
+        // 审批制静态评论：昵称/内容/所属页，可选 replyTo（楼中楼）。渲染端全量转义，这里只做长度与必填约束
+        const page = String(parsed.page || '').trim().slice(0, 40);
+        if (!page) throw new Error('评论缺少所属页面（page）');
+        const content = String(parsed.content || '').trim().slice(0, 500);
+        if (!content) throw new Error('评论内容为空');
+        config.comments = config.comments || {};
+        config.comments[page] = config.comments[page] || [];
+        const entry = {
+            id: 'i-' + issueNumber,
+            n: String(parsed.nickname || '').trim().slice(0, 20) || '马铃薯',
+            t: content,
+            d: String(parsed.date || new Date().toISOString().slice(0, 10)).slice(0, 10)
+        };
+        const replyTo = String(parsed.replyto || '').trim().slice(0, 24);
+        if (replyTo) entry.replyTo = replyTo;
+        config.comments[page].push(entry);
+        return `评论已收录（${page}，第 ${config.comments[page].length} 条）`;
+    }
 
     if (type === 'works') {
         const category = (parsed.category || parsed.categories || '未分类').trim();
@@ -263,7 +284,7 @@ async function checkIssues(ctx) {
                         continue;
                     }
                     const c = core.readConfig();
-                    const message = applyIssueToConfig(c, p);
+                    const message = applyIssueToConfig(c, p, issue.number);
                     core.writeConfig(c);
                     okAny = true;
                     entryMsgs.push(message);

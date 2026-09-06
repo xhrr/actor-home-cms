@@ -1099,3 +1099,45 @@ a { text-decoration: none; color: inherit; }
 .plugin-card__header.is-toggle:hover .plugin-card__title {
     color: var(--color-accent-hover);
 }
+
+/* ===== 评论管理 ===== */
+.comment-admin__page {
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 1rem;
+    background: var(--color-surface);
+    margin-bottom: 1rem;
+}
+.comment-admin__page-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--color-border);
+    margin-bottom: 0.25rem;
+}
+.comment-admin__key {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+}
+.comment-admin__row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 0.6rem 0;
+    border-top: 1px dashed var(--color-border);
+}
+.comment-admin__page-head + .comment-admin__row {
+    border-top: none;
+}
+.comment-admin__meta {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+}
+.comment-admin__text {
+    margin: 0.25rem 0 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+}

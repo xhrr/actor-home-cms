@@ -11,12 +11,21 @@
     if (!grid) return;
 
     const params = new URLSearchParams(window.location.search);
-    const albumIndex = params.get('album');
+    const albumRef = params.get('album');
     const catIndex = params.get('cat');
-    const workIndex = params.get('work');
+    const workRef = params.get('work');
+    // 老链接兜底：无稳定 ID 的老作品走 ?cat=N&work=M 数字索引（page.js 仍会生成该格式），缺此解析会 ReferenceError 整页崩
+    const workIndex = workRef !== null && /^\d+$/.test(workRef) ? parseInt(workRef, 10) : null;
 
     const gallery = C.gallery || { heading: '写真', albums: [] };
     const albums = Array.isArray(gallery.albums) ? gallery.albums : [];
+
+    /** 解析相册：优先稳定 ID，数字参数按索引兜底（老链接兼容） */
+    function resolveAlbum(ref) {
+        let ai = albums.findIndex(a => a.id && a.id === ref);
+        if (ai < 0 && /^\d+$/.test(String(ref))) ai = parseInt(ref, 10);
+        return { album: albums[ai] || null, ai };
+    }
     const works = C.works || {};
     const categories = Array.isArray(works.categories) && works.categories.length
         ? works.categories
@@ -177,7 +186,7 @@
                 ${shown.map(({ a: album, idx: ai }) => {
                     const cover = safeUrl(album.cover || (album.images && album.images[0]), 'image');
                     return `
-                        <a class="album-card" href="/gallery.html?album=${ai}">
+                        <a class="album-card" href="/gallery.html?album=${album.id || ai}">
                             <div class="album-card__cover">
                                 <img src="${cover}" alt="${esc(album.title || '写真集')}" loading="lazy" onerror="this.parentElement.classList.add('is-empty')">
                             </div>
@@ -382,15 +391,23 @@
 
         curImages = images.filter(Boolean);
         renderMasonry(images.map((url, i) => ({ url, alt: `写真 ${i + 1}` })));
+        if (window.Comments && album.id) window.Comments.render('album-' + album.id, grid, 'afterend');
     }
 
     /* ---------- 作品图集兼容 ---------- */
 
     function renderWorkGallery() {
         let work = null;
-        if (catIndex !== null && categories[catIndex] && categories[catIndex].items && categories[catIndex].items[workIndex]) {
+        if (workRef !== null) {
+            for (const cat of categories) {
+                const hit = (cat.items || []).find(x => x.id && x.id === workRef);
+                if (hit) { work = hit; break; }
+            }
+        }
+        if (!work && catIndex !== null && categories[catIndex] && categories[catIndex].items && categories[catIndex].items[workIndex]) {
             work = categories[catIndex].items[workIndex];
-        } else if (workIndex !== null && categories.length && categories[0] && categories[0].items && categories[0].items[workIndex]) {
+        }
+        if (!work && workIndex !== null && categories.length && categories[0] && categories[0].items && categories[0].items[workIndex]) {
             work = categories[0].items[workIndex];
         }
         const images = (work && Array.isArray(work.images) ? work.images : []).filter((url, i, arr) => arr.indexOf(url) === i);
@@ -434,13 +451,15 @@
 
         curImages = images.filter(Boolean);
         renderMasonry(images.map((url, i) => ({ url, alt: `剧照 ${i + 1}` })));
+        if (window.Comments && work && work.id) window.Comments.render('work-' + work.id, grid, 'afterend');
     }
 
     /* ---------- 入口 ---------- */
 
-    if (albumIndex !== null && albums[albumIndex]) {
-        renderAlbum(albums[albumIndex], parseInt(albumIndex, 10));
-    } else if (catIndex !== null || workIndex !== null) {
+    const resolvedAlbum = albumRef !== null ? resolveAlbum(albumRef) : { album: null, ai: NaN };
+    if (resolvedAlbum.album) {
+        renderAlbum(resolvedAlbum.album, resolvedAlbum.ai);
+    } else if (catIndex !== null || workRef !== null) {
         renderWorkGallery();
     } else {
         renderList();

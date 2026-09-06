@@ -47,6 +47,7 @@
         renderExportPluginActions();
         updateSidebarNav();
         loadReadmeEditor();
+        renderCommentsAdmin();
         bindGlobal();
     }
 
@@ -956,6 +957,7 @@
             const ai = item.dataset.albumIndex;
             const images = item.querySelector(`[data-album-images="${ai}"]`).value.split('\n').map(s => s.trim()).filter(Boolean);
             albums.push({
+                id: (config.gallery.albums[ai] || {}).id,
                 title: item.querySelector(`[data-album-title="${ai}"]`).value,
                 cover: item.querySelector(`[data-album-cover="${ai}"]`).value || images[0] || '',
                 author: item.querySelector(`[data-album-author="${ai}"]`).value,
@@ -1054,6 +1056,7 @@
         document.querySelectorAll('#news-list .content-item').forEach(item => {
             const i = item.dataset.index;
             items.push({
+                id: (data.items[i] || {}).id,
                 date: item.querySelector(`[data-news-date="${i}"]`).value,
                 title: item.querySelector(`[data-news-title="${i}"]`).value,
                 summary: item.querySelector(`[data-news-summary="${i}"]`).value,
@@ -1074,6 +1077,7 @@
         document.querySelectorAll('#awards-list .content-item').forEach(item => {
             const i = item.dataset.index;
             items.push({
+                id: (data.items[i] || {}).id,
                 year: item.querySelector(`[data-award-year="${i}"]`).value,
                 name: item.querySelector(`[data-award-name="${i}"]`).value,
                 org: item.querySelector(`[data-award-org="${i}"]`).value,
@@ -1094,6 +1098,7 @@
         document.querySelectorAll('#schedule-list .content-item').forEach(item => {
             const i = item.dataset.index;
             items.push({
+                id: (data.items[i] || {}).id,
                 date: item.querySelector(`[data-sched-date="${i}"]`).value,
                 city: item.querySelector(`[data-sched-city="${i}"]`).value,
                 event: item.querySelector(`[data-sched-event="${i}"]`).value,
@@ -1106,6 +1111,7 @@
         document.querySelectorAll('#schedule-announcements .content-item').forEach(item => {
             const i = item.dataset.announcementIndex;
             announcements.push({
+                id: ((data.announcements || [])[i] || {}).id,
                 month: item.querySelector(`[data-announcement-month="${i}"]`).value,
                 text: item.querySelector(`[data-announcement-text="${i}"]`).value,
                 sourceUrl: item.querySelector(`[data-announcement-source="${i}"]`).value,
@@ -1403,6 +1409,8 @@
             link.addEventListener('click', e => {
                 e.preventDefault();
                 switchSection(link.dataset.section);
+                // 评论管理：每次进入都拉最新数据（服务器为唯一事实源）
+                if (link.dataset.section === 'comments') renderCommentsAdmin();
             });
         });
 
@@ -1659,12 +1667,105 @@
         });
     }
 
+    /* ===================================================================
+       评论管理（独立于模块管理；端点即时生效，不走全局保存——避免同状态双入口覆盖）
+       =================================================================== */
+
+    let commentsAdminState = { enabled: true };
+
+    async function renderCommentsAdmin() {
+        const listEl = $('#comments-admin-list');
+        const btn = $('#btn-toggle-comments');
+        const status = $('#comments-switch-status');
+        try {
+            const data = await (await fetch('/api/comments/admin')).json();
+            commentsAdminState.enabled = !!(data.settings && data.settings.enabled);
+            if (btn) btn.textContent = commentsAdminState.enabled ? '一键关闭评论' : '一键开启评论';
+            if (status) status.textContent = commentsAdminState.enabled ? '当前：已启用' : '当前：已关闭（数据保留）';
+            if (!listEl) return;
+            const esc = window.AdminCMS.esc;
+            const pages = data.pages || [];
+            if (!pages.length) {
+                listEl.innerHTML = '<p class="form-help">暂无评论。</p>';
+                return;
+            }
+            const total = pages.reduce((n, p) => n + (p.count || 0), 0);
+            listEl.innerHTML = pages.map(p => `
+                <div class="comment-admin__page">
+                    <div class="comment-admin__page-head">
+                        <strong>${esc(p.label)}</strong>
+                        <span class="comment-admin__key">${esc(p.key)} · ${p.count} 条</span>
+                    </div>
+                    ${p.comments.map(c => `
+                        <div class="comment-admin__row">
+                            <div class="comment-admin__row-main">
+                                <span class="comment-admin__meta">${esc(c.n || '马铃薯')} · ${esc(c.d)}${c.replyTo ? ' · 回复 ' + esc(c.replyTo) : ''}</span>
+                                <p class="comment-admin__text">${esc(c.t)}</p>
+                            </div>
+                            <button type="button" class="btn btn--ghost btn--sm" data-comment-del="${esc(p.key)}|${esc(c.id)}">删除</button>
+                        </div>
+                    `).join('')}
+                </div>
+            `).join('') + `<p class="form-help" style="margin-top:0.75rem">共 ${pages.length} 个页面 / ${total} 条评论。删除后前台随下次导出生效。</p>`;
+        } catch (e) {
+            if (listEl) listEl.innerHTML = `<p class="form-help">加载失败：${window.AdminCMS.esc(e.message)}</p>`;
+        }
+    }
+
+    function bindCommentsAdmin() {
+        const btn = $('#btn-toggle-comments');
+        if (btn) {
+            btn.addEventListener('click', async () => {
+                const target = !commentsAdminState.enabled;
+                const tip = target
+                    ? '确认启用评论功能？'
+                    : '确认关闭评论功能？关闭后全站评论区不再渲染、提交端点拒绝新留言（已有数据保留）。';
+                if (!confirm(tip)) return;
+                btn.disabled = true;
+                try {
+                    const res = await fetch('/api/comments/settings', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ enabled: target })
+                    });
+                    const j = await res.json();
+                    if (!res.ok) throw new Error(j.error || 'http ' + res.status);
+                } catch (e) {
+                    alert('操作失败：' + e.message);
+                }
+                btn.disabled = false;
+                renderCommentsAdmin();
+            });
+        }
+
+        const list = $('#comments-admin-list');
+        if (list) {
+            list.addEventListener('click', async e => {
+                const del = e.target.closest('[data-comment-del]');
+                if (!del) return;
+                const [page, id] = del.dataset.commentDel.split('|');
+                if (!confirm('确认删除这条评论？其下回复将上移为一级评论。')) return;
+                del.disabled = true;
+                try {
+                    const res = await fetch(`/api/comments/admin/${encodeURIComponent(page)}/${encodeURIComponent(id)}`, { method: 'DELETE' });
+                    const j = await res.json();
+                    if (!res.ok) throw new Error(j.error || 'http ' + res.status);
+                } catch (e2) {
+                    alert('删除失败：' + e2.message);
+                    del.disabled = false;
+                }
+                renderCommentsAdmin();
+            });
+        }
+    }
+
     function bindGlobal() {
         bindSectionNav();
         bindMedia();
         bindTheme();
         bindAutoSave();
         bindListControls();
+        bindCommentsAdmin();
 
         $('#btnPreview').addEventListener('click', e => {
             e.preventDefault();

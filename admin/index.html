@@ -26,6 +26,7 @@
             <a class="sidebar__link" data-section="social">社交链接</a>
             <a class="sidebar__link" data-section="footer">版权信息</a>
             <a class="sidebar__link" data-section="modules">模块管理</a>
+            <a class="sidebar__link" data-section="comments">评论管理</a>
             <div class="sidebar__divider"></div>
             <a class="sidebar__link" data-section="media">媒体库</a>
             <a class="sidebar__link" data-section="theme">主题</a>
@@ -366,6 +367,19 @@
                 <button type="button" class="btn btn--ghost btn--sm" id="btn-add-module">+ 添加模块</button>
             </div>
             <div id="modules-list"></div>
+        </div>
+
+        <div id="section-comments" class="section-card">
+            <div class="section-header">
+                <h3>评论管理</h3>
+                <p>查看与管理全站评论（独立于模块管理；公共站新留言经 GitHub Issue 审批后固化至此）</p>
+            </div>
+            <div class="form-group comment-admin__switch">
+                <button type="button" class="btn btn--primary btn--sm" id="btn-toggle-comments">一键关闭评论</button>
+                <span id="comments-switch-status" class="form-help" style="margin-left:0.75rem"></span>
+                <p class="form-help">关闭后：NAS 提交端点立即拒绝、前台评论区随下次导出不再渲染、公共站提交端随下次导出+部署一并关闭。已有评论数据保留，随时可重新开启。</p>
+            </div>
+            <div id="comments-admin-list"></div>
         </div>
 
         <div id="section-plugins" class="section-card">

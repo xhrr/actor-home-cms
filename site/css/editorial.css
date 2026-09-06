@@ -2142,3 +2142,164 @@ a.footer__credits-name:hover {
     font-size: 1.15rem;
     line-height: 1;
 }
+
+/* ---------- 评论（杂志风：编号 + 细线 + 楼中楼 + 发布留言） ---------- */
+.comments {
+    padding: 3rem 0 1rem;
+    border-top: 1px solid var(--fg-20);
+    text-align: left;
+}
+
+.comments__count {
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    letter-spacing: 0;
+    color: var(--fg-40);
+    margin-left: .6rem;
+    vertical-align: .5em;
+}
+
+.comments__list {
+    list-style: none;
+    margin: 2.25rem 0 0;
+    padding: 0;
+}
+
+.comment {
+    padding: 1.5rem 0;
+    border-top: 1px solid var(--fg-20);
+}
+
+.comments__list > .comment:first-child {
+    border-top: none;
+    padding-top: 0;
+}
+
+.comment__head {
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+}
+
+.comment__num {
+    font-size: .8rem;
+    color: var(--fg-40);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: .1em;
+}
+
+.comment__name {
+    font-weight: 600;
+    font-size: .95rem;
+}
+
+.comment__ref {
+    font-size: .78rem;
+    color: var(--fg-40);
+}
+
+.comment__date {
+    margin-left: auto;
+    font-size: .78rem;
+    color: var(--fg-40);
+    letter-spacing: .08em;
+}
+
+.comment__reply {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: .78rem;
+    color: var(--fg-40);
+    cursor: pointer;
+}
+
+.comment__reply:hover {
+    color: var(--fg);
+}
+
+.comment__text {
+    margin: .55rem 0 0;
+    font-size: .98rem;
+    line-height: 1.8;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.comment__replies {
+    list-style: none;
+    margin: 1.1rem 0 0;
+    padding: .2rem 0 .2rem 1.4rem;
+    border-left: 1px solid var(--fg-20);
+    display: flex;
+    flex-direction: column;
+    gap: 1.2rem;
+}
+
+.comment--reply .comment__text { font-size: .92rem; }
+
+/* 发布留言 */
+.comments__form {
+    margin-top: 2.75rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--fg-20);
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.comments__form-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 1.5rem;
+}
+
+.comments__input {
+    background: none;
+    border: none;
+    border-bottom: 1px solid var(--fg-20);
+    border-radius: 0;
+    padding: .45rem 0;
+    font: inherit;
+    color: var(--fg);
+    transition: border-color var(--dur-fast) var(--ease-standard);
+}
+
+.comments__input:focus {
+    outline: none;
+    border-bottom-color: var(--fg);
+}
+
+.comments__form-row .comments__input { flex: 1; }
+
+.comments__textarea {
+    resize: vertical;
+    min-height: 3.4rem;
+    line-height: 1.7;
+}
+
+.comments__submit {
+    background: var(--fg);
+    color: var(--bg);
+    border: 1px solid var(--fg);
+    padding: .6rem 1.75rem;
+    font-size: .8rem;
+    letter-spacing: .3em;
+    text-indent: .3em;
+    cursor: pointer;
+    transition: opacity var(--dur-fast) var(--ease-standard);
+}
+
+.comments__submit:hover { opacity: .82; }
+
+.comments__replying {
+    font-size: .8rem;
+    color: var(--fg-60);
+    cursor: pointer;
+}
+
+.comments__form-hint {
+    margin: 0;
+    font-size: .78rem;
+    color: var(--fg-40);
+}

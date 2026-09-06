@@ -29,6 +29,7 @@ app.use('/plugins', express.static(PATHS.PLUGINS_DIR, {
 
 /* ---------- API 路由 ---------- */
 app.use(require('./lib/routes/config')(core));
+app.use(require('./lib/routes/comments')(core));
 app.use(require('./lib/routes/plugins')(core));
 app.use(require('./lib/routes/themes')(core));
 app.use(require('./lib/routes/export')(core));

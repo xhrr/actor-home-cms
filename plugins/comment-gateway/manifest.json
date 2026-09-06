@@ -1,0 +1,11 @@
+{
+  "name": "comment-gateway",
+  "label": "评论提交网关（公共站）",
+  "version": "0.1.0",
+  "description": "公共静态站评论提交端：导出时生成 Cloudflare Pages Function，访客留言建 GitHub Issue 待审，审批后由 github-issues 插件固化。",
+  "author": "Actor CMS",
+  "client": "client.js",
+  "server": "server.js",
+  "admin": "admin.js",
+  "assets": []
+}

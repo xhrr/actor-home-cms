@@ -152,7 +152,7 @@ window.CMS.registerModule('hero', function (mod) {
                     <img src="${poster}" alt="${esc(item.title)}" loading="lazy" onerror="this.parentElement.classList.add('is-empty')">
                 </div>
                 <div class="work-item__info">
-                    <h3 class="work-item__title"><a class="work-item__link" href="/gallery.html?cat=${ci}&work=${ii}">${esc(item.title)}</a></h3>
+                    <h3 class="work-item__title"><a class="work-item__link" href="/gallery.html${item.id ? `?work=${item.id}` : `?cat=${ci}&work=${ii}`}">${esc(item.title)}</a></h3>
                     <p class="work-item__meta">${esc(cat.name || item.type || '')} · ${esc(U.formatTime(item.year || item.releaseDate))} · ${esc(item.director || '')}</p>
                     <p class="work-item__role">饰演 ${esc(item.role || '')}</p>
                     <p class="work-item__synopsis">${esc(item.synopsis || '')}</p>
@@ -187,7 +187,7 @@ window.CMS.registerModule('hero', function (mod) {
         ${shown.map(({ a: album, i: ai }) => {
             const cover = safeUrl(album.cover || (album.images && album.images[0]), 'image');
             return `
-                <a class="album-card" href="/gallery.html?album=${ai}">
+                <a class="album-card" href="/gallery.html?album=${album.id || ai}">
                     <div class="album-card__cover">
                         <img src="${cover}" alt="${esc(album.title || '写真集')}" loading="lazy" onerror="this.parentElement.classList.add('is-empty')">
                     </div>

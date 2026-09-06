@@ -14,3 +14,6 @@ themes/*/
 /theme-packages/
 /plugins/qq-channel-watch/bin/
 
+
+# 导出生成的评论数据文件（自动刷新，不入库）
+site/js/data-comments.js
