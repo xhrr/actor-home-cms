@@ -45,10 +45,9 @@
     const pad2 = n => String(n).padStart(2, '0');
     const fmtDate = d => String(d || '').replace(/-/g, '.');
 
-    function headHtml(num, c, ref) {
+    function headHtml(c, ref) {
         return `
             <div class="comment__head">
-                <span class="comment__num">${num}</span>
                 <span class="comment__name">${esc(c.n || '马铃薯')}</span>
                 ${ref ? `<span class="comment__ref">${esc(ref)}</span>` : ''}
                 <span class="comment__date">${fmtDate(c.d)}</span>
@@ -64,20 +63,26 @@
             const reps = replies[c.id] || [];
             return `
             <li class="comment">
-                ${headHtml(pad2(++num), c)}
-                <p class="comment__text">${esc(c.t)}</p>
-                ${reps.length ? `
-                <ul class="comment__replies">
-                    ${reps.map(r => {
-                        const parent = byId[r.replyTo];
-                        const ref = parent && parent.id !== c.id ? `回复 @${parent.n || '匿名'}` : '';
-                        return `
-                        <li class="comment comment--reply">
-                            ${headHtml(pad2(++num), r, ref)}
-                            <p class="comment__text">${esc(r.t)}</p>
-                        </li>`;
-                    }).join('')}
-                </ul>` : ''}
+                <span class="comment__num">${pad2(++num)}</span>
+                <div class="comment__main">
+                    ${headHtml(c)}
+                    <p class="comment__text">${esc(c.t)}</p>
+                    ${reps.length ? `
+                    <ul class="comment__replies">
+                        ${reps.map(r => {
+                            const parent = byId[r.replyTo];
+                            const ref = parent && parent.id !== c.id ? `回复 @${parent.n || '匿名'}` : '';
+                            return `
+                            <li class="comment comment--reply">
+                                <span class="comment__num">${pad2(++num)}</span>
+                                <div class="comment__main">
+                                    ${headHtml(r, ref)}
+                                    <p class="comment__text">${esc(r.t)}</p>
+                                </div>
+                            </li>`;
+                        }).join('')}
+                    </ul>` : ''}
+                </div>
             </li>`;
         };
         let nick = '';
@@ -118,6 +123,23 @@
         }
     }
 
+    /** 轻弹窗反馈：比表单 hint 更明显（底部居中，3s 自动消退） */
+    let toastTimer = null;
+    function showToast(msg) {
+        let el = document.getElementById('commentsToast');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'commentsToast';
+            el.className = 'comments-toast';
+            document.body.appendChild(el);
+        }
+        el.textContent = msg;
+        void el.offsetWidth; // 强制回流，让重复触发时淡入过渡重新播放
+        el.classList.add('is-show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => el.classList.remove('is-show'), 3000);
+    }
+
     function submitForm(section) {
         const nickEl = section.querySelector('#commentNickname');
         const ta = section.querySelector('#commentContent');
@@ -144,7 +166,9 @@
                 // 公共站待审通道（comment-gateway）：不落本地展示，等审批固化后的导出上线
                 state.replyTo = null; state.replyName = '';
                 ta.value = '';
-                hint.textContent = j.message || '留言已提交，审核通过后展示';
+                const msg = j.message || '留言已提交，审核通过后展示';
+                hint.textContent = msg;
+                showToast(msg);
                 return;
             }
             const all = (window.SITE_CONFIG.comments = window.SITE_CONFIG.comments || {});
@@ -152,8 +176,10 @@
             list.push(j.comment);
             state.replyTo = null; state.replyName = '';
             rerender();
+            showToast('留言已发布');
         }).catch(() => {
             hint.textContent = '评论提交暂未开放，敬请期待';
+            showToast('评论提交暂未开放，敬请期待');
         });
     }
 
@@ -196,9 +222,10 @@
     function autoInit() {
         const params = new URLSearchParams(window.location.search);
         const album = params.get('album');
-        const path = window.location.pathname.split('/').pop();
+        // 页面名去扩展名匹配：公共站（Pages）会把 /gallery.html 308 到 /gallery，写死 .html 永远不匹配（事故 14）
+        const path = (window.location.pathname.replace(/\/+$/, '').split('/').pop() || '').replace(/\.html?$/i, '');
         const grid = document.getElementById('galleryGrid');
-        if (path === 'gallery.html' && album !== null && grid) {
+        if (path === 'gallery' && album !== null && grid) {
             const albums = (window.SITE_CONFIG.gallery || {}).albums || [];
             const hit = albums.find(a => a.id && a.id === album) || (/^\d+$/.test(album) ? albums[+album] : null);
             if (hit && hit.id) render('album-' + hit.id, grid, 'afterend');
@@ -212,7 +239,7 @@
             if (hit) render('work-' + hit.id, grid, 'afterend');
             return;
         }
-        if (path === 'news.html') {
+        if (path === 'news') {
             const app = document.getElementById('app');
             if (app) render('news', app, 'beforeend');
         }

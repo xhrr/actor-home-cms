@@ -2166,8 +2166,17 @@ a.footer__credits-name:hover {
 }
 
 .comment {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: 1rem;
+    align-items: baseline;
     padding: 1.5rem 0;
     border-top: 1px solid var(--fg-20);
+}
+
+/* 内容列：昵称/日期/正文/楼中楼都收进这一列，与昵称左缘对齐（序号悬挂在外） */
+.comment__main {
+    min-width: 0;
 }
 
 .comments__list > .comment:first-child {
@@ -2237,6 +2246,31 @@ a.footer__credits-name:hover {
 }
 
 .comment--reply .comment__text { font-size: .92rem; }
+
+/* 评论提交反馈 toast：比表单 hint 更明显的轻弹窗（底部居中，3s 自动消退） */
+.comments-toast {
+    position: fixed;
+    left: 50%;
+    bottom: 2.2rem;
+    transform: translateX(-50%) translateY(10px);
+    background: var(--fg);
+    color: var(--bg);
+    padding: .85rem 1.5rem;
+    font-size: .88rem;
+    letter-spacing: .06em;
+    line-height: 1.5;
+    max-width: min(90vw, 32rem);
+    text-align: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--dur-mid) var(--ease-standard), transform var(--dur-mid) var(--ease-standard);
+    z-index: 900;
+}
+
+.comments-toast.is-show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
 
 /* 发布留言 */
 .comments__form {

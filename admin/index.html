@@ -25,7 +25,9 @@
             <a class="sidebar__link" data-section="about">关于</a>
             <a class="sidebar__link" data-section="social">社交链接</a>
             <a class="sidebar__link" data-section="footer">版权信息</a>
-            <a class="sidebar__link" data-section="modules">模块管理</a>
+            <!-- 模块管理入口已屏蔽（事故 11/12 相关，显隐开关在各内容分区仍可用）。
+                 #section-modules 区块保留在 DOM（collectModules 依赖其卡片，删掉会导致全局保存清空 config.modules）。
+                 恢复方法：把下面这行加回侧边栏：<a class="sidebar__link" data-section="modules">模块管理</a> -->
             <a class="sidebar__link" data-section="comments">评论管理</a>
             <div class="sidebar__divider"></div>
             <a class="sidebar__link" data-section="media">媒体库</a>
