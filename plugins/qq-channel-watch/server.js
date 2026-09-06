@@ -274,10 +274,12 @@ function buildBlock(type, fields, sourceUrl, imageUrls) {
     if (type === 'works') {
         put('category', fields.category); put('title', fields.title); put('role', fields.role);
         put('year', fields.year); put('director', fields.director); put('sourceUrl', sourceUrl);
+        put('poster', imageUrls[0]); // 海报 = 第一张照片；解析端兜底一致，人工过目时可直接替换
         put('synopsis', fields.synopsis);
         if (imageUrls.length) { lines.push('images:'); imageUrls.forEach(u => lines.push('  - ' + u)); }
     } else if (type === 'album') {
         put('title', fields.title); put('author', fields.author); put('sourceUrl', sourceUrl);
+        put('cover', imageUrls[0]); // 封面 = 第一张照片
         if (imageUrls.length) { lines.push('images:'); imageUrls.forEach(u => lines.push('  - ' + u)); }
     } else if (type === 'news') {
         put('date', fields.date); put('title', fields.title); put('summary', fields.summary); put('sourceUrl', sourceUrl);
