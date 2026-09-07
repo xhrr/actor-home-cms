@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>投稿</title>
+    <meta name="robots" content="noindex">
+    <link rel="stylesheet" href="/css/editorial.css">
+    <script src="/js/config.js"></script>
+    <script src="/js/cms.js"></script>
+    <style>
+        /* 投稿页专属样式（自包含，不触碰 editorial.css，不影响其他页面） */
+        .contrib-page {
+            max-width: 46rem;
+            margin: 0 auto;
+            padding: 2rem 1.25rem 5rem;
+        }
+        .contrib-page__eyebrow {
+            margin: 0;
+            font-size: .75rem;
+            letter-spacing: .25em;
+            color: var(--fg-40);
+        }
+        .contrib-page__title {
+            margin: .5rem 0 1.75rem;
+            font-family: var(--font-serif);
+            font-size: clamp(1.9rem, 5vw, 2.6rem);
+            font-weight: 400;
+            letter-spacing: -0.02em;
+        }
+        .contrib-type {
+            display: flex;
+            gap: 1.6rem;
+            padding-bottom: .8rem;
+            border-bottom: 1px solid var(--fg-10);
+            margin-bottom: 1.5rem;
+        }
+        .contrib-type__btn {
+            position: relative;
+            padding: .4rem 0;
+            background: none;
+            border: 0;
+            font: inherit;
+            font-size: .8rem;
+            letter-spacing: .2em;
+            color: var(--fg-40);
+            cursor: pointer;
+            transition: color var(--dur-fast, 180ms) ease;
+        }
+        .contrib-type__btn::after {
+            content: '';
+            position: absolute;
+            left: 0; right: 0; bottom: 0;
+            height: 1px;
+            background: currentColor;
+            transform: scaleX(0);
+            transform-origin: right center;
+            transition: transform var(--dur-fast, 180ms) var(--ease-standard, ease);
+        }
+        .contrib-type__btn.active {
+            color: var(--fg);
+        }
+        .contrib-type__btn.active::after {
+            transform: scaleX(1);
+        }
+        .contrib-field {
+            margin-bottom: 1.15rem;
+        }
+        .contrib-field label {
+            display: block;
+            margin-bottom: .35rem;
+            font-size: .78rem;
+            letter-spacing: .12em;
+            color: var(--fg-60);
+        }
+        .contrib-field input,
+        .contrib-field textarea,
+        .contrib-field select {
+            width: 100%;
+            background: none;
+            border: none;
+            border-bottom: 1px solid var(--fg-20);
+            border-radius: 0;
+            padding: .5rem 0;
+            font: inherit;
+            font-size: .95rem;
+            color: var(--fg);
+            transition: border-color var(--dur-fast, 180ms) ease;
+        }
+        .contrib-field textarea { resize: vertical; min-height: 3.2rem; line-height: 1.7; }
+        .contrib-field input:focus,
+        .contrib-field textarea:focus,
+        .contrib-field select:focus {
+            outline: none;
+            border-bottom-color: var(--fg);
+        }
+        .contrib-field__help {
+            margin: .3rem 0 0;
+            font-size: .75rem;
+            color: var(--fg-40);
+        }
+        .contrib-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.2rem;
+        }
+        .contrib-pick {
+            border: 1px dashed var(--fg-20);
+            padding: 1.1rem 1rem;
+            text-align: center;
+            cursor: pointer;
+            font-size: .85rem;
+            color: var(--fg-60);
+            transition: border-color var(--dur-fast, 180ms) ease, color var(--dur-fast, 180ms) ease;
+        }
+        .contrib-pick:hover { border-color: var(--fg-40); color: var(--fg); }
+        .contrib-pick.is-drag {
+            border-style: solid;
+            border-color: var(--fg);
+            color: var(--fg);
+            background: var(--fg-10);
+        }
+        .contrib-thumbs {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(5.2rem, 1fr));
+            gap: .6rem;
+            margin-top: .8rem;
+        }
+        .contrib-thumb {
+            position: relative;
+            aspect-ratio: 3 / 4;
+            background: var(--fg-10);
+            overflow: hidden;
+        }
+        .contrib-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .contrib-thumb__tag {
+            position: absolute;
+            left: .3rem;
+            top: .3rem;
+            padding: .12rem .4rem;
+            font-size: .62rem;
+            letter-spacing: .1em;
+            background: rgba(28, 28, 28, .55);
+            color: var(--bg);
+        }
+        .contrib-thumb__del {
+            position: absolute;
+            right: .2rem;
+            top: .2rem;
+            width: 1.3rem;
+            height: 1.3rem;
+            border: 0;
+            border-radius: 50%;
+            background: rgba(28, 28, 28, .55);
+            color: var(--bg);
+            font-size: .8rem;
+            line-height: 1;
+            cursor: pointer;
+        }
+        .contrib-submit {
+            margin-top: 1.6rem;
+            width: 100%;
+            background: var(--fg);
+            color: var(--bg);
+            border: 1px solid var(--fg);
+            padding: .85rem 0;
+            font: inherit;
+            font-size: .85rem;
+            letter-spacing: .3em;
+            text-indent: .3em;
+            cursor: pointer;
+            transition: opacity var(--dur-fast, 180ms) ease;
+        }
+        .contrib-submit:hover { opacity: .82; }
+        .contrib-submit:disabled { opacity: .45; cursor: wait; }
+        .contrib-bar {
+            height: 2px;
+            background: var(--fg-10);
+            margin-top: .9rem;
+            display: none;
+        }
+        .contrib-bar__fill {
+            height: 100%;
+            width: 0;
+            background: var(--fg);
+            transition: width .25s ease;
+        }
+        .contrib-msg {
+            margin-top: .9rem;
+            font-size: .85rem;
+            line-height: 1.6;
+            display: none;
+        }
+        .contrib-msg.is-ok { display: block; color: var(--fg); }
+        .contrib-msg.is-err { display: block; color: #a13b3b; }
+        .contrib-note {
+            margin-top: 2.2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--fg-10);
+            font-size: .75rem;
+            line-height: 1.8;
+            color: var(--fg-40);
+        }
+        @media (max-width: 560px) {
+            .contrib-row { grid-template-columns: 1fr; gap: 0; }
+        }
+    </style>
+</head>
+<body>
+    <nav class="nav" id="nav">
+        <a href="/" class="nav__logo" id="navLogo"></a>
+        <button class="nav__toggle" id="navToggle" aria-label="菜单" aria-expanded="false">
+            <span></span><span></span><span></span>
+        </button>
+        <ul class="nav__links" id="navLinks"></ul>
+    </nav>
+
+    <main class="section" style="padding-top:7rem">
+        <div class="contrib-page">
+            <p class="contrib-page__eyebrow">CONTRIBUTE</p>
+            <h1 class="contrib-page__title">投稿</h1>
+
+            <div class="contrib-type" id="contribType">
+                <button type="button" class="contrib-type__btn active" data-type="album">图 集</button>
+                <button type="button" class="contrib-type__btn" data-type="works">作 品</button>
+            </div>
+
+            <form id="contribForm" novalidate>
+                <div id="fieldsAlbum">
+                    <div class="contrib-field">
+                        <label>发帖日期 *</label>
+                        <input type="date" id="f-date">
+                    </div>
+                    <div class="contrib-field">
+                        <label>作者 / 摄影师 *</label>
+                        <input type="text" id="f-author" maxlength="40" placeholder="摄影师或内容创作者">
+                    </div>
+                </div>
+                <div id="fieldsWorks" style="display:none">
+                    <div class="contrib-row">
+                        <div class="contrib-field">
+                            <label>分类 *</label>
+                            <select id="f-category">
+                                <option value="">未分类</option>
+                                <option>影游</option>
+                                <option>短剧</option>
+                                <option>电影</option>
+                                <option>电视剧</option>
+                            </select>
+                        </div>
+                        <div class="contrib-field">
+                            <label>年份 *</label>
+                            <input type="text" id="f-year" maxlength="10" placeholder="2026 或 2026-03-01">
+                        </div>
+                    </div>
+                    <div class="contrib-row">
+                        <div class="contrib-field">
+                            <label>导演</label>
+                            <input type="text" id="f-director" maxlength="40">
+                        </div>
+                        <div class="contrib-field">
+                            <label>饰演角色 *</label>
+                            <input type="text" id="f-role" maxlength="40">
+                        </div>
+                    </div>
+                    <div class="contrib-field">
+                        <label>简介 *</label>
+                        <textarea id="f-synopsis" maxlength="300" rows="3"></textarea>
+                    </div>
+                </div>
+
+                <div class="contrib-field">
+                    <label>标题 *</label>
+                    <input type="text" id="f-title" maxlength="60" placeholder="必填">
+                </div>
+                <div class="contrib-field">
+                    <label>原始链接 *</label>
+                    <input type="url" id="f-sourceUrl" maxlength="300" placeholder="https://…（必填）">
+                </div>
+
+                <div class="contrib-field">
+                    <label id="imgLabel">图片 *（最多 30 张，自动压缩为 webp）</label>
+                    <div class="contrib-pick" id="contribPick">点击选择图片（可多选），或拖拽文件 / 文件夹到此处</div>
+                    <input type="file" id="contribFiles" accept="image/*" multiple style="display:none">
+                    <div class="contrib-thumbs" id="contribThumbs"></div>
+                    <p class="contrib-field__help">点击图片可设为封面（作品为海报）；上传到站内图床，格式自动转为 webp。</p>
+                </div>
+
+                <button type="submit" class="contrib-submit" id="contribSubmit">提 交 投 稿</button>
+                <div class="contrib-bar" id="contribBar"><div class="contrib-bar__fill" id="contribBarFill"></div></div>
+                <p class="contrib-msg" id="contribMsg"></p>
+            </form>
+
+            <p class="contrib-note">提交后经人工审核上线；请确认图片有权分享。投稿内容将进入待审队列，不会立即展示。</p>
+        </div>
+    </main>
+
+    <script src="/js/contribute.js"></script>
+</body>
+</html>

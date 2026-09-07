@@ -1,0 +1,11 @@
+{
+  "name": "contribute-gateway",
+  "label": "投稿网关（公共站）",
+  "version": "0.1.0",
+  "description": "独立投稿页：访客/站长填表并上传图片，经 Cloudflare Pages Function 传 R2 并建 GitHub Issue 待审，审批后由 github-issues 插件固化。不影响其他插件与页面。",
+  "author": "Actor CMS",
+  "client": "client.js",
+  "server": "server.js",
+  "admin": "admin.js",
+  "assets": []
+}
