@@ -2372,3 +2372,175 @@ a.footer__credits-name:hover {
         row-gap: .2rem;
     }
 }
+
+/* ===== 触屏可点性暗示（用户反馈：移动端卡片看不出能点进详情） =====
+   hover:none + pointer:coarse 精准命中触屏；桌面（pointer:fine）不受影响。
+   两件事：① 按压即时反馈（替代 hover 的回应感）② 细箭头常显（静态可读的可点暗示） */
+@media (hover: none) and (pointer: coarse) {
+    /* 相册卡：按压缩放（scale 属性独立于 transform，不干扰滚动显现动画）+ 边框回应 + 封面同 hover 态 */
+    .album-card {
+        transition:
+            opacity var(--dur-reveal) var(--ease-standard) var(--stagger, 0ms),
+            transform var(--dur-reveal) var(--ease-standard) var(--stagger, 0ms),
+            border-color var(--dur-fast) ease,
+            background-color var(--dur-mid) ease,
+            scale var(--dur-fast) var(--ease-standard);
+    }
+    .album-card:active {
+        scale: 0.98;
+        border-color: var(--fg-40);
+        background: var(--fg-02);
+    }
+    .album-card:active .album-card__cover img {
+        transform: scale(1.05);
+    }
+    .album-card:active .album-card__title {
+        font-style: italic;
+    }
+    /* 封面右上角：三连发丝 chevron 波浪（单元素 + drop-shadow 复制两份，currentColor 随主体变色；
+       淡墨光晕兜底浅色封面可读性） */
+    .album-card__cover {
+        position: relative;
+    }
+    .album-card__cover::before {
+        content: '';
+        position: absolute;
+        top: .78rem;
+        right: .7rem;
+        width: .46rem;
+        height: .46rem;
+        border-top: 1px solid currentColor;
+        border-right: 1px solid currentColor;
+        color: rgba(249, 248, 246, 0.9);
+        transform: rotate(45deg);
+        pointer-events: none;
+        animation: touchChevronWave 1s ease-in-out infinite;
+    }
+    /* 作品条目：按压反馈镜像桌面 hover 全套语言（背景/斜体/编号深化/封面缩放），
+       背景用显式 rgba 加深到可感知（--fg-02 仅 2% 透明度，触屏上几乎看不见） */
+    .work-item {
+        transition: background-color var(--dur-fast) ease;
+    }
+    .work-item:active {
+        background: rgba(28, 28, 28, 0.045);
+    }
+    .work-item:active .work-item__title {
+        font-style: italic;
+    }
+    .work-item:active .work-item__num {
+        color: var(--fg);
+    }
+    .works__list--feature .work-item:active .work-item__media img {
+        transform: scale(1.05);
+    }
+    /* 标题后三连发丝 chevron：宿主用 title::after（link::after 是整卡点击遮罩 inset:0，不可占用）。
+       color 驱动 currentColor：边框与两份 drop-shadow 复制体同步变色，按压时整组变墨 */
+    .work-item__title::after {
+        content: '';
+        display: inline-block;
+        width: .42em;
+        height: .42em;
+        margin-left: .55em;
+        border-top: 1px solid currentColor;
+        border-right: 1px solid currentColor;
+        color: var(--fg-40);
+        transform: rotate(45deg);
+        vertical-align: .08em;
+        background: none;
+        animation: touchChevronWave 1s ease-in-out infinite;
+    }
+    /* feature 列表的 title::after 桌面态是 hover 下划线（特异性更高），触屏下中和为 chevron */
+    .works__list--feature .work-item__title::after {
+        display: inline-block;
+        width: .42em;
+        height: .42em;
+        background: none;
+    }
+    .work-item:active .work-item__title::after {
+        color: var(--fg);
+        animation: none;
+    }
+    /* 三连 chevron 波浪：主体依次点亮两份 drop-shadow 复制体（左→右流水），整组同步轻推；
+       drop-shadow 复制的是旋转后 chevron 的实际轮廓（0 模糊=锐利复制） */
+    @keyframes touchChevronWave {
+        0%, 100% {
+            opacity: .5;
+            transform: rotate(45deg) translateX(0);
+            filter: drop-shadow(.42em 0 0 transparent) drop-shadow(.84em 0 0 transparent);
+        }
+        30% {
+            opacity: 1;
+            filter: drop-shadow(.42em 0 0 currentColor) drop-shadow(.84em 0 0 transparent);
+        }
+        60% {
+            opacity: .8;
+            transform: rotate(45deg) translateX(.12em);
+            filter: drop-shadow(.42em 0 0 currentColor) drop-shadow(.84em 0 0 currentColor);
+        }
+    }
+}
+
+/* 减弱动效偏好：停掉前引动画（静态 chevron 仍是可点暗示） */
+@media (prefers-reduced-motion: reduce) {
+    .album-card__cover::before,
+    .work-item__title::after {
+        animation: none;
+    }
+}
+/* ===== 图集时间筛选（两层常驻：年份/月份，样式对齐 works-filter 文本筛选语言） ===== */
+.gallery-filter {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+    margin-top: 1.1rem;
+    padding-bottom: 1.2rem;
+    border-bottom: 1px solid var(--fg-10);
+}
+.gallery-filter__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 2.4rem;
+}
+.gallery-filter__link {
+    position: relative;
+    padding: 0.4rem 0;
+    background: none;
+    border: 0;
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    letter-spacing: 0.2em;
+    color: var(--fg-40);
+    cursor: pointer;
+    transition: color 0.3s ease;
+}
+.gallery-filter__link::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background: currentColor;
+    transform: scaleX(0);
+    transform-origin: right center;
+    transition: transform var(--dur-fast) var(--ease-standard);
+}
+.gallery-filter__link:hover {
+    color: var(--fg);
+}
+.gallery-filter__link:hover::after,
+.gallery-filter__link.active::after {
+    transform: scaleX(1);
+}
+.gallery-filter__link.active {
+    color: var(--fg);
+}
+/* 第二层（月份）：字号略小 + 层间留白，与年份行拉开层级 */
+.gallery-filter__row--month {
+    gap: 0.45rem 1.9rem;
+    margin-top: 0.35rem;
+}
+.gallery-filter__row--month .gallery-filter__link {
+    font-size: 0.72rem;
+}

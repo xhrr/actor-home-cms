@@ -326,8 +326,8 @@
         if (galleryEnabledInput) galleryEnabledInput.checked = findModule('images') ? findModule('images').visible !== false : true;
         $('#gallery-heading').value = config.gallery.heading || '写真';
         $('#gallery-albums-list').innerHTML = config.gallery.albums.map((album, ai) => {
-            const src = [album.title, album.author, album.sourceUrl, (album.images || []).length + '张'].join(' ').toLowerCase();
-            const meta = [album.author, (album.images || []).length + ' 张'].filter(Boolean).join(' · ');
+            const src = [album.title, album.author, album.sourceUrl, album.date, (album.images || []).length + '张'].join(' ').toLowerCase();
+            const meta = [album.date, album.author, (album.images || []).length + ' 张'].filter(Boolean).join(' · ');
             return `
             <div class="album-item admin-album-item is-collapsed" data-album-index="${ai}" data-search="${window.AdminCMS.esc(src)}">
                 <div class="album-item__head" data-toggle-item>
@@ -351,14 +351,19 @@
                 </div>
                 <div class="form-row">
                     <div class="form-group">
+                        <label>发帖日期（年月日）</label>
+                        <input type="date" data-album-date="${ai}" value="${window.AdminCMS.esc(album.date || '')}">
+                        <p class="form-help">取原始链接的发布时间；图集页按月筛选与排序依据。</p>
+                    </div>
+                    <div class="form-group">
                         <label>作者</label>
                         <input type="text" data-album-author="${ai}" value="${window.AdminCMS.esc(album.author || '')}" placeholder="摄影师 / 来源作者">
                     </div>
-                    <div class="form-group">
-                        <label>原始链接</label>
-                        <input type="text" data-album-source="${ai}" value="${window.AdminCMS.esc(album.sourceUrl || '')}" placeholder="https://weibo.com/... 或原图地址">
-                        <p class="form-help">详情页会显示「原始链接」跳转按钮。</p>
-                    </div>
+                </div>
+                <div class="form-group">
+                    <label>原始链接</label>
+                    <input type="text" data-album-source="${ai}" value="${window.AdminCMS.esc(album.sourceUrl || '')}" placeholder="https://weibo.com/... 或原图地址">
+                    <p class="form-help">详情页会显示「原始链接」跳转按钮。</p>
                 </div>
                 <div class="form-group">
                     <label>照片 URL（每行一个，可多张）</label>
@@ -959,6 +964,7 @@
             albums.push({
                 id: (config.gallery.albums[ai] || {}).id,
                 title: item.querySelector(`[data-album-title="${ai}"]`).value,
+                date: item.querySelector(`[data-album-date="${ai}"]`).value,
                 cover: item.querySelector(`[data-album-cover="${ai}"]`).value || images[0] || '',
                 author: item.querySelector(`[data-album-author="${ai}"]`).value,
                 sourceUrl: item.querySelector(`[data-album-source="${ai}"]`).value,
@@ -1593,7 +1599,7 @@
                 works.push({ key: ci + '-' + ii, disp: it.title || ('未命名 ' + ci + '-' + ii) });
             }));
             add('作品', 'works', works);
-            add('写真集', 'gallery', (config.gallery.albums || []).map((a, i) => ({ key: String(i), disp: a.title + (a.author ? '（' + a.author + '）' : '') })));
+            add('写真集', 'gallery', (config.gallery.albums || []).map((a, i) => ({ key: String(i), disp: [a.title, a.date, a.author].filter(Boolean).join(' ') + (a.author ? `（${a.author}）` : '') })));
             add('动态', 'news', ((config.plugins && config.plugins.data['actor-news'] || {}).items || []).map((it, i) => ({ key: String(i), disp: (it.title || '') + ' ' + (it.date || '') })));
             add('荣誉', 'awards', ((config.plugins && config.plugins.data['actor-awards'] || {}).items || []).map((it, i) => ({ key: String(i), disp: (it.name || '') + ' ' + (it.year || '') })));
             add('行程', 'schedule', ((config.plugins && config.plugins.data['actor-schedule'] || {}).items || []).map((it, i) => ({ key: String(i), disp: (it.event || '') + ' · ' + (it.date || '') + (it.city ? ' · ' + it.city : '') })));

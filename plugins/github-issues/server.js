@@ -146,8 +146,12 @@ function applyIssueToConfig(config, parsed, issueNumber) {
 
     if (type === 'album') {
         config.gallery = config.gallery || { heading: '写真', albums: [] };
+        // 发帖日期（年月日）：宽松归一 YYYY-MM-DD（兼容 2026.09.06 / 2026/09/06 写法），格式不符不落
+        const rawDate = String(parsed.date || '').trim();
+        const normDate = rawDate.replace(/[./]/g, '-');
         config.gallery.albums.push({
             title: parsed.title || '新写真集',
+            date: /^\d{4}-\d{2}-\d{2}$/.test(normDate) ? normDate : '',
             cover: parsed.cover || (parsed.images && parsed.images[0]) || '',
             // 解析器会把 key 转为小写：sourceUrl -> sourceurl；兼容 link/source
             author: parsed.author || '',
