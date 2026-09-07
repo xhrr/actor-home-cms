@@ -26,7 +26,7 @@
                 </div>
                 <div class="form-group">
                     <p class="form-help"><strong>上线步骤：</strong>① 保存配置后执行「导出」（Function 随 dist 推送自动部署到 Pages）② Cloudflare Pages 后台 → 该项目 → Settings → 环境变量 → 添加 <code>GITHUB_TOKEN</code>（加密，与 github-issues 共用同一 Token）③ 站点上提交一条留言，仓库出现「留言待审」Issue 即通道打通。</p>
-                    <p class="form-help">NAS/内网表单仍走 CMS 自带 /api/comments（即时展示，不经此网关）。当前渲染策略：页面无评论时不渲染评论区，首条留言可由站长经手工 Issue 补录。</p>
+                    <p class="form-help">NAS/内网表单仍走 CMS 自带 /api/comments（即时展示，不经此网关）。评论区常显：无留言的页面也展示空状态与表单，访客可直接发出首条；「评论管理」一键开关可全站启停。</p>
                 </div>
             `;
         },

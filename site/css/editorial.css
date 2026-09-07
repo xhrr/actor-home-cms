@@ -2184,6 +2184,14 @@ a.footer__credits-name:hover {
     padding-top: 0;
 }
 
+/* 空状态：评论区常显时，无留言的占位提示 */
+.comments__empty {
+    padding: .4rem 0 0;
+    font-size: .88rem;
+    letter-spacing: .05em;
+    color: var(--fg-40);
+}
+
 .comment__head {
     display: flex;
     align-items: baseline;

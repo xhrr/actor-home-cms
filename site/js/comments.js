@@ -3,6 +3,8 @@
  * 数据：导出固化的 SITE_CONFIG.comments（审批制：评论经 GitHub Issue 人工审批后写入）。
  * 发布：POST 同源 /api/comments（NAS/CMS 端点）；公共静态站未配置提交端点时表单自动降级提示。
  * 页面标识：图集详情 = album-{序号}；动态页 = news。
+ * 展示策略：开关开启时评论区常显（无留言显示空状态 + 表单，访客可发首条）；
+ *          「评论管理」一键关闭（commentsEnabled=false）时全站零渲染。
  */
 (function () {
     'use strict';
@@ -93,7 +95,7 @@
                 <p class="section__label">COMMENTS</p>
                 <h2 class="section__title">留言<sup class="comments__count">${list.length}</sup></h2>
             </div>
-            <ul class="comments__list">${roots.map(thread).join('')}</ul>
+            <ul class="comments__list">${roots.map(thread).join('') || '<li class="comments__empty">还没有留言，来写下第一条吧</li>'}</ul>
             <form class="comments__form" id="commentsForm">
                 <div class="comments__form-row">
                     <input type="text" class="comments__input" id="commentNickname" placeholder="昵称（选填，默认马铃薯）" maxlength="20" autocomplete="off" value="${esc(nick)}">
@@ -209,7 +211,7 @@
     }
 
     function render(pageKey, mountEl, position) {
-        if (!commentsEnabled() || !commentsFor(pageKey).length || !mountEl) return null;
+        if (!commentsEnabled() || !mountEl) return null;
         if (document.getElementById('commentsSection')) return null; // 防脚本顺序变化导致的双渲染
         state.pageKey = pageKey;
         mountEl.insertAdjacentHTML(position || 'afterend', sectionHtml());
@@ -232,7 +234,7 @@
             return;
         }
         const workId = params.get('work');
-        if (path === 'gallery.html' && workId !== null && grid) {
+        if (path === 'gallery' && workId !== null && grid) {
             const works = (window.SITE_CONFIG.works || {}).categories || [];
             let hit = null;
             works.forEach(cat => (cat.items || []).forEach(it => { if (it.id === workId) hit = it; }));
