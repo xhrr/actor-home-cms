@@ -768,8 +768,10 @@
         return failed.length ? { ok: false, error: '插件配置保存失败: ' + failed.join(', ') } : { ok: true };
     }
 
-    // 只保存指定分区（自动保存用）；成功后刷新内存为服务端最新
-    async function saveSection(name, silent = false) {
+    // 只保存指定分区（自动保存用）。
+    // batch=true（saveAllSections 批量循环）：服务端回包只含当前分区，整体替换内存会洗掉
+    // 其他分区的本地未保存改动（添加分类后保存即消失的根因）——此时只回填当前分区字段。
+    async function saveSection(name, silent = false, batch = false) {
         if (name === 'plugins') return savePluginPanels();
         const def = SECTION_SAVERS[name];
         if (!def) return { ok: false, error: '未知分区: ' + name };
@@ -814,7 +816,15 @@
 
         if (res.ok) {
             const json = await res.json().catch(() => null);
-            if (json && json.config) config = json.config; // 内存与服务端对齐，杜绝旧快照覆盖
+            if (json && json.config) {
+                if (batch) {
+                    // 批量保存：仅回填本分区（服务端深合并结果），保留其他分区的本地改动
+                    (def.sections || []).forEach(k => { if (json.config[k] !== undefined) config[k] = json.config[k]; });
+                    if (def.modules && Array.isArray(json.config.modules)) config.modules = json.config.modules;
+                } else {
+                    config = json.config; // 单分区保存：内存与服务端对齐，杜绝旧快照覆盖
+                }
+            }
             return { ok: true };
         }
         // 兼容旧服务端（尚无 PATCH 端点）：回退整包保存
@@ -835,12 +845,17 @@
         const failed = [];
         for (const name of Object.keys(SECTION_SAVERS)) {
             try {
-                const r = await saveSection(name, true);
+                const r = await saveSection(name, true, true); // batch：不整体替换内存
                 if (!r.ok) failed.push(name + ': ' + (r.error || '失败'));
             } catch (e) {
                 console.error('[save] section failed:', name, e);
                 failed.push(name + ': ' + e.message);
             }
+        }
+        // 全部落盘后统一对齐服务端（此时所有分区都已保存，整体替换是安全的）
+        if (!failed.length) {
+            const fresh = await fetch('/api/config').then(r => r.json()).catch(() => null);
+            if (fresh && !fresh.error) config = fresh;
         }
         dirtySections.clear();
         const status = $('#saveStatus');
@@ -856,6 +871,24 @@
         }
         updateSidebarNav();
         if (previewEnabled) refreshPreview();
+        // 保存后同步界面：分类下拉/条目名称等在 config 更新后需重渲染（否则显示旧值像"没保存"）
+        if (!failed.length) syncSectionsUI();
+    }
+
+    /** 保存成功后重渲染易失同步的分区界面（带焦点保护，不打断正在编辑的输入） */
+    function syncSectionsUI() {
+        const focused = document.activeElement;
+        const focusId = focused && focused.id ? focused.id : null;
+        const focusCat = focused && focused.dataset ? focused.dataset.catName : null;
+        renderWorks();
+        renderGallery();
+        if (focusCat) {
+            const again = document.querySelector(`[data-cat-name="${focusCat}"]`);
+            if (again && again.focus) again.focus();
+        } else if (focusId) {
+            const again = document.getElementById(focusId);
+            if (again && again.focus) again.focus();
+        }
     }
 
     function collectActor() {
@@ -1476,19 +1509,25 @@
     }
 
     function scheduleAutoSave() {
-        if (!previewEnabled) return;
+        // 自动保存全局生效（原先仅预览面板打开时才触发，编辑后切页/关标签页会丢改动）
         clearTimeout(autosaveTimer);
         autosaveTimer = setTimeout(saveDirtySections, 1200);
     }
 
-    // 只自动保存发生过编辑的分区
+    // 只自动保存发生过编辑的分区（全局生效，与预览面板无关）
     async function saveDirtySections() {
         if (!dirtySections.size) return;
         const names = Array.from(dirtySections);
         dirtySections.clear();
+        const failed = [];
         for (const n of names) {
-            const r = await saveSection(n, true);
-            if (!r.ok) dirtySections.add(n); // 失败保留脏标记，下轮重试
+            const r = await saveSection(n, true, true); // batch：不整体替换内存，避免洗掉其他分区本地改动
+            if (!r.ok) { dirtySections.add(n); failed.push(n); } // 失败保留脏标记，下轮重试
+        }
+        if (!failed.length) {
+            syncSectionsUI(); // 保存成功后同步界面（分类下拉等）
+        } else {
+            showToast('自动保存失败：' + failed.join('、') + '（将继续重试）', true);
         }
         if (previewEnabled) refreshPreview();
     }
