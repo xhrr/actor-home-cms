@@ -1505,13 +1505,39 @@
 
     function markDirty(section) {
         dirtySections.add(section);
-        scheduleAutoSave();
+        // 不立即保存：等失焦/点空白时统一提交（避免打字过程中频繁写盘）
     }
 
-    function scheduleAutoSave() {
-        // 自动保存全局生效（原先仅预览面板打开时才触发，编辑后切页/关标签页会丢改动）
+    /** 失焦触发：光标离开输入框且落到非输入区域时提交（点空白、Tab 切走、点按钮等） */
+    function onFocusOut(e) {
+        const next = e.relatedTarget;
+        // 焦点仍在输入类元素内（如从标题切到作者）不触发，等真正离开再存
+        if (next && next.closest && next.closest('input, textarea, select, [contenteditable="true"]')) return;
+        if (!dirtySections.size) return;
         clearTimeout(autosaveTimer);
-        autosaveTimer = setTimeout(saveDirtySections, 1200);
+        autosaveTimer = setTimeout(saveDirtySections, 150); // 极短延迟：让同一次点击内的多次失焦合并为一次保存
+    }
+
+    /** 兜底：切页/关闭标签前把未保存内容提交（beforeunload 用同步语义，尽量落盘） */
+    function flushDirtySync() {
+        if (!dirtySections.size) return;
+        // 无法在卸载时等异步：用 sendBeacon 或同步 XHR 兜底（这里走同步 XHR 保证尽力落盘）
+        for (const n of Array.from(dirtySections)) {
+            const def = SECTION_SAVERS[n];
+            if (!def || !def.sections) continue;
+            try {
+                if (def.collect) def.collect();
+                const sections = {};
+                def.sections.forEach(k => { if (config[k] !== undefined) sections[k] = config[k]; });
+                const body = { sections };
+                if (def.modules && Array.isArray(config.modules)) body.modules = config.modules;
+                const xhr = new XMLHttpRequest();
+                xhr.open('PATCH', '/api/config', false); // 同步：保证卸载前发出
+                xhr.setRequestHeader('Content-Type', 'application/json');
+                xhr.send(JSON.stringify(body));
+            } catch (err) { /* 尽力而为 */ }
+        }
+        dirtySections.clear();
     }
 
     // 只自动保存发生过编辑的分区（全局生效，与预览面板无关）
@@ -1526,6 +1552,7 @@
         }
         if (!failed.length) {
             syncSectionsUI(); // 保存成功后同步界面（分类下拉等）
+            showToast('已自动保存');
         } else {
             showToast('自动保存失败：' + failed.join('、') + '（将继续重试）', true);
         }
@@ -1536,6 +1563,16 @@
         // 委托监听：模块列表等动态重渲染内容也生效
         document.addEventListener('input', onAutoSaveInput, true);
         document.addEventListener('change', onAutoSaveInput, true);
+        // 失焦（点空白/Tab 切走/点其他控件）时提交
+        document.addEventListener('focusout', onFocusOut, true);
+        // 点页面空白处（未聚焦任何输入）也提交一次
+        document.addEventListener('click', e => {
+            if (!dirtySections.size) return;
+            const inField = e.target.closest && e.target.closest('input, textarea, select, [contenteditable="true"], button, a, label');
+            if (!inField) { clearTimeout(autosaveTimer); autosaveTimer = setTimeout(saveDirtySections, 150); }
+        }, true);
+        // 离开页面前兜底提交
+        window.addEventListener('beforeunload', flushDirtySync);
     }
 
     function onAutoSaveInput(e) {
