@@ -10,7 +10,45 @@
  * - 多图抽查：首图必审 + 其余随机抽样（可配置张数），控制耗时与 token 成本
  * - 凭证继承 weibo-watch 的 MiMo 配置（llmBaseUrl/llmKey/llmModel），无需重复配置
  */
+const fs = require('fs');
+const path = require('path');
 const core = require('../../lib/core');
+
+/* ---------------- 审核历史（独立文件，不随面板保存被覆盖） ----------------
+   config.plugins.data['ai-review'] 存的是配置；通用 PUT /api/plugins/:name/data 是整体替换，
+   面板 collect() 不含 history → 每次保存都会把历史抹掉。故历史单独落盘。 */
+const HISTORY_FILE = path.join(core.PATHS.DATA_DIR, 'ai-review-history.json');
+const HISTORY_MAX = 200;
+
+function readHistory() {
+    try {
+        const j = JSON.parse(fs.readFileSync(HISTORY_FILE, 'utf-8'));
+        return Array.isArray(j) ? j : [];
+    } catch (e) { return []; }
+}
+
+function writeHistory(list) {
+    try {
+        fs.mkdirSync(path.dirname(HISTORY_FILE), { recursive: true });
+        fs.writeFileSync(HISTORY_FILE, JSON.stringify(list.slice(0, HISTORY_MAX), null, 2), 'utf-8');
+    } catch (e) { /* 写失败不影响审核主流程 */ }
+}
+
+/** 合并新结果进历史：同 Issue 覆盖旧记录（重审不产生重复条目），最多保留 200 条 */
+function mergeHistory(results) {
+    const old = readHistory();
+    const byNum = new Map();
+    results.forEach(r => byNum.set(r.number, r));
+    const merged = [];
+    for (const r of results) merged.push(r);
+    for (const h of old) {
+        if (byNum.has(h.number)) continue; // 本轮已重审，保留新记录
+        merged.push(h);
+    }
+    const trimmed = merged.slice(0, HISTORY_MAX);
+    writeHistory(trimmed);
+    return trimmed;
+}
 
 const DEFAULTS = {
     repo: 'xhrr/QMQ-SGLXQ',
@@ -185,7 +223,43 @@ async function runReview(ctx) {
             reviewedAt: new Date().toISOString()
         };
         try {
-            const { verdict, sampled, tokens } = await reviewContent(ctx, { text: issue.body || issue.title, images });
+            // 异常自动重试：最多 2 次（首次 + 重试 1 次），仍失败则按「不通过」处理，交人工复核
+            let lastErr = null;
+            let outcome = null;
+            for (let attempt = 0; attempt < 2; attempt++) {
+                try {
+                    outcome = await reviewContent(ctx, { text: issue.body || issue.title, images });
+                    break;
+                } catch (e) {
+                    lastErr = e;
+                    if (attempt === 0) {
+                        ctx.log(`Issue #${issue.number} 审核异常，重试中: ${e.message}`);
+                        await new Promise(r => setTimeout(r, 3000));
+                    }
+                }
+            }
+            if (!outcome) {
+                // 重试后仍异常 → 降级为「不通过」，打标记并贴原因，等人工复审
+                record.error = lastErr ? lastErr.message : '审核异常';
+                record.safe = false;
+                record.reason = 'AI 审核连续异常，已按未通过处理，请人工复审';
+                record.action = 'rejected';
+                // 必须移除待审标签，否则下一轮轮询会把同一条再次拉进来重复审核
+                const keep = record.labels.filter(l => !labels.includes(l) && l !== c.reviewedLabel && l !== c.rejectedLabel);
+                try {
+                    await gh(`/repos/${repo}/issues/${issue.number}`, token, {
+                        method: 'PATCH',
+                        body: JSON.stringify({ labels: [...keep, c.reviewedLabel, c.rejectedLabel].filter(Boolean) })
+                    });
+                    await gh(`/repos/${repo}/issues/${issue.number}/comments`, token, {
+                        method: 'POST',
+                        body: JSON.stringify({ body: `🤖 AI 审核异常（已重试 2 次）\n\n- 错误：${record.error}\n- 处理：按未通过标记，请人工复审；改标签为 \`${c.approvedLabel}\` 即放行。` })
+                    });
+                } catch (e2) { ctx.log(`Issue #${issue.number} 异常标记失败:`, e2.message); }
+                results.push(record);
+                continue;
+            }
+            const { verdict, sampled, tokens } = outcome;
             Object.assign(record, {
                 safe: verdict.safe, textSafe: verdict.textSafe, imageSafe: verdict.imageSafe,
                 categories: verdict.categories, reason: verdict.reason,
@@ -200,8 +274,9 @@ async function runReview(ctx) {
                 });
                 record.action = 'approved';
             } else {
-                // 未开启自动放行 / 判定不通过：只打审核标记 + 贴理由，等人处理
-                const keep = record.labels.filter(l => l !== c.reviewedLabel && l !== c.rejectedLabel);
+                // 未开启自动放行 / 判定不通过：打审核标记 + 贴理由，等人处理
+                // ⚠️ 同时移除待审标签——否则轮询会把已审过的再次拉入，形成重复审核死循环
+                const keep = record.labels.filter(l => !labels.includes(l) && l !== c.reviewedLabel && l !== c.rejectedLabel);
                 const extra = verdict.safe ? [c.reviewedLabel] : [c.reviewedLabel, c.rejectedLabel];
                 await gh(`/repos/${repo}/issues/${issue.number}`, token, {
                     method: 'PATCH',
@@ -217,18 +292,19 @@ async function runReview(ctx) {
             }
         } catch (e) {
             record.error = e.message;
+            record.safe = false;
+            record.reason = record.reason || '审核流程异常，请人工复审';
+            record.action = record.action || 'rejected';
             ctx.log(`Issue #${issue.number} 审核失败:`, e.message);
         }
         results.push(record);
     }
 
-    const history = Array.isArray(ctx.getData().history) ? ctx.getData().history : [];
-    const merged = [...results, ...history].slice(0, 200); // 保留最近 200 条
+    mergeHistory(results);
     ctx.setData({
         ...c,
-        history: merged,
         lastRun: new Date().toISOString(),
-        lastStatus: `本轮审核 ${results.length} 条：通过 ${results.filter(r => r.safe).length}，未通过 ${results.filter(r => r.safe === false).length}，失败 ${results.filter(r => r.error).length}`
+        lastStatus: `本轮审核 ${results.length} 条：通过 ${results.filter(r => r.safe).length}，未通过 ${results.filter(r => r.safe === false).length}，异常 ${results.filter(r => r.error).length}`
     });
     return { ok: true, results, status: ctx.getData().lastStatus };
 }
@@ -247,7 +323,7 @@ module.exports = function (ctx) {
     // 历史记录（Web 界面用）
     ctx.app.get('/api/plugins/ai-review/history', (req, res) => {
         const d = ctx.getData();
-        res.json({ history: Array.isArray(d.history) ? d.history : [], lastRun: d.lastRun || null, lastStatus: d.lastStatus || null });
+        res.json({ history: readHistory(), lastRun: d.lastRun || null, lastStatus: d.lastStatus || null });
     });
 
     // 人工复审：改标签（放行 / 拒绝 / 重置为待审）
@@ -281,9 +357,8 @@ module.exports = function (ctx) {
                 body: JSON.stringify({ body: `👤 人工复审：${action === 'approve' ? '放行（标签改为 approved）' : action === 'reject' ? '拒绝' : '退回待审'}` })
             });
             // 同步历史记录里的动作
-            const d = ctx.getData();
-            const history = (d.history || []).map(h => h.number === number ? { ...h, human: action, humanAt: new Date().toISOString() } : h);
-            ctx.setData({ ...d, history });
+            const history = readHistory().map(h => h.number === number ? { ...h, human: action, humanAt: new Date().toISOString() } : h);
+            writeHistory(history);
             res.json({ success: true, action, number });
         } catch (e) {
             res.status(500).json({ error: e.message });
@@ -304,4 +379,4 @@ module.exports = function (ctx) {
     ctx.onExport = null;
 };
 
-module.exports._internal = { extractImages, sampleIndexes, parseVerdict, PROMPT };
+module.exports._internal = { extractImages, sampleIndexes, parseVerdict, PROMPT, readHistory, writeHistory, mergeHistory, HISTORY_MAX };

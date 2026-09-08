@@ -99,7 +99,7 @@
     }
 
     function badge(r) {
-        if (r.error) return '<span class="badge badge--warn">异常</span>';
+        if (r.error) return '<span class="badge badge--bad">异常·按未通过</span>';
         if (r.safe === false) return '<span class="badge badge--bad">未通过</span>';
         if (r.action === 'approved') return '<span class="badge badge--ok">已自动放行</span>';
         if (r.action === 'suggested-pass') return '<span class="badge badge--ok">建议通过</span>';
@@ -126,13 +126,13 @@
             const imgs = r.imageUrls && r.imageUrls.length
                 ? '<div class="thumbs">' + r.imageUrls.slice(0, 6).map(u => '<img src="' + esc(u) + '" alt="" loading="lazy">').join('') + '</div>'
                 : '';
-            const acts = r.error ? '' : (
-                '<div class="acts">'
+            // 异常记录同样可人工复审（异常已按「不通过」降级，必须能放行）
+            const acts = '<div class="acts">'
                 + '<button data-act="approve" data-num="' + r.number + '">放行</button>'
                 + '<button data-act="reject" data-num="' + r.number + '">拒绝</button>'
                 + '<button data-act="pending" data-num="' + r.number + '">退回待审</button>'
                 + '<span class="msg" data-msg="' + r.number + '"></span>'
-                + '</div>');
+                + '</div>';
             return '<div class="card">'
                 + '<div class="card__head">'
                 + '<span class="card__num">#' + r.number + '</span>'
