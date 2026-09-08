@@ -174,7 +174,23 @@
         return fd;
     }
 
-    function submitForm() {
+    function sendForm(fd) {
+        return new Promise(resolve => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', ENDPOINT);
+            xhr.responseType = 'json';
+            xhr.timeout = 120000; // 挂死的请求不再永久转圈，按超时失败处理
+            xhr.upload.onprogress = e => {
+                if (e.lengthComputable) setBusy(true, Math.round(e.loaded / e.total * 100));
+            };
+            xhr.onload = () => resolve({ status: xhr.status, body: xhr.response || {} });
+            xhr.onerror = () => resolve({ status: 0, body: {} });
+            xhr.ontimeout = () => resolve({ status: 0, body: {} });
+            xhr.send(fd);
+        });
+    }
+
+    async function submitForm() {
         const title = $('f-title').value.trim();
         if (!title) { showMsg('请填写标题', true); return; }
         if (currentType === 'album' && !$('f-date').value) { showMsg('请选择发帖日期', true); return; }
@@ -189,31 +205,21 @@
         }
         if (!pendingFiles.length) { showMsg('请至少选择一张图片', true); return; }
 
-        const fd = buildFormData();
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', ENDPOINT);
-        xhr.responseType = 'json';
         setBusy(true, 0);
-        xhr.upload.onprogress = e => {
-            if (e.lengthComputable) setBusy(true, Math.round(e.loaded / e.total * 100));
-        };
-        xhr.onload = () => {
-            setBusy(false);
-            const j = xhr.response || {};
-            if (xhr.status >= 200 && xhr.status < 300 && j.success) {
-                showMsg(`✅ ${j.message || '投稿已提交，审核通过后上线'}（Issue #${j.issueNumber}）`, false);
-                pendingFiles = [];
-                renderThumbs();
-                $('contribForm').reset();
-            } else {
-                showMsg('❌ ' + (j.error || `提交失败（${xhr.status}）`), true);
-            }
-        };
-        xhr.onerror = () => {
-            setBusy(false);
-            showMsg('❌ 提交失败：网络错误或提交端未部署', true);
-        };
-        xhr.send(fd);
+        const last = await sendForm(buildFormData());
+        setBusy(false);
+
+        if (last.status >= 200 && last.status < 300 && last.body.success) {
+            showMsg(`✅ ${last.body.message || '投稿已提交，审核通过后上线'}（Issue #${last.body.issueNumber}）`, false);
+            pendingFiles = [];
+            renderThumbs();
+            $('contribForm').reset();
+            return;
+        }
+        // 失败原因分级提示：服务端给的文案优先，其次按状态归类
+        const reason = last.body.error
+            || (last.status === 0 ? '网络错误或超时，请检查网络后重试' : `投稿服务暂时不可用（${last.status}），请稍后再试`);
+        showMsg('❌ 上传失败：' + reason, true);
     }
 
     /* ---------- 初始化 ---------- */

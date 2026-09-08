@@ -7,6 +7,7 @@
     const $ = s => document.querySelector(s);
     const $$ = s => document.querySelectorAll(s);
     let config = null;
+    let configLoadFailed = false; // 配置加载失败旗标：置位后禁止一切保存（防错误响应体被当作配置误写）
     let pluginList = [];
     let previewEnabled = false;
     let autosaveTimer = null;
@@ -36,7 +37,16 @@
     document.addEventListener('DOMContentLoaded', init);
 
     async function init() {
-        config = await (await fetch('/api/config')).json();
+        try {
+            const res = await fetch('/api/config');
+            config = await res.json();
+            if (!res.ok) configLoadFailed = true;
+        } catch (e) {
+            configLoadFailed = true;
+        }
+        // migrateConfig 保证正常配置必有 modules 数组；缺失 = 拿到的是错误响应体（如全新环境 ENOENT 500）
+        if (!config || typeof config !== 'object' || !Array.isArray(config.modules)) configLoadFailed = true;
+        if (configLoadFailed) showToast('配置加载失败，请刷新页面重试', true);
         const pluginRes = await fetch('/api/plugins');
         const pluginData = await pluginRes.json();
         pluginList = pluginData.plugins || [];
@@ -763,7 +773,17 @@
         if (name === 'plugins') return savePluginPanels();
         const def = SECTION_SAVERS[name];
         if (!def) return { ok: false, error: '未知分区: ' + name };
-        if (def.collect) def.collect();
+        if (configLoadFailed || !config || typeof config !== 'object') {
+            return { ok: false, error: '配置未加载（请刷新页面重试）' };
+        }
+        if (def.collect) {
+            try {
+                def.collect();
+            } catch (e) {
+                console.error('[save] collect failed:', name, e);
+                return { ok: false, error: name + ' 分区收集失败: ' + e.message };
+            }
+        }
 
         const sections = {};
         (def.sections || []).forEach(k => {
@@ -814,8 +834,13 @@
     async function saveAllSections(silent = false) {
         const failed = [];
         for (const name of Object.keys(SECTION_SAVERS)) {
-            const r = await saveSection(name, true);
-            if (!r.ok) failed.push(name + ': ' + (r.error || '失败'));
+            try {
+                const r = await saveSection(name, true);
+                if (!r.ok) failed.push(name + ': ' + (r.error || '失败'));
+            } catch (e) {
+                console.error('[save] section failed:', name, e);
+                failed.push(name + ': ' + e.message);
+            }
         }
         dirtySections.clear();
         const status = $('#saveStatus');
@@ -1165,6 +1190,7 @@
 
     function applyHeroMode() {
         const mode = config.hero && config.hero.mode || 'classic';
+        config.modules = config.modules || []; // 配置异常/未加载时不再 TypeError（其余函数早有 || [] 口径）
         let heroMod = config.modules.find(m => m.type === 'hero');
         let splitMod = config.modules.find(m => m.type === 'hero-split');
         let changed = false;
