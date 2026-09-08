@@ -26,7 +26,7 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label>轮询间隔（分钟）</label>
-                        <input type="number" id="gi-interval" min="1" value="${window.AdminCMS.esc(data.pollInterval || '10')}">
+                        <input type="number" id="gi-interval" min="1" value="${window.AdminCMS.esc(data.pollInterval != null ? data.pollInterval : 10)}">
                         <p class="form-help">当前生效：<span id="gi-interval-now">…</span></p>
                     </div>
                     <div class="form-group">

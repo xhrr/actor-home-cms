@@ -25,8 +25,11 @@
     window.AdminCMS = {
         panels,
         esc: function (str) {
-            if (typeof str !== 'string') return '';
-            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            // 数字/布尔等标量也要能回显到输入框（此前非字符串一律返回 ''，
+            // 导致插件面板的数字配置项 value 恒为空、保存后又变回默认值）
+            if (str === null || str === undefined) return '';
+            if (typeof str === 'object') return '';
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
                       .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
         },
         registerPluginPanel: function (name, panel) {

@@ -1,0 +1,11 @@
+{
+  "name": "ai-review",
+  "label": "AI 内容审核",
+  "version": "0.1.0",
+  "description": "自动审核待审投稿/评论 Issue：文本与图片经 MiMo 多模态判定，通过则自动放行，不通过保留待审并附理由，支持人工复审改标签。",
+  "author": "Actor CMS",
+  "client": "client.js",
+  "server": "server.js",
+  "admin": "admin.js",
+  "assets": []
+}

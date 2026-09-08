@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 审核记录</title>
+<style>
+    :root {
+        --bg: #F9F8F6; --fg: #1C1C1C; --fg-60: rgba(28,28,28,.6); --fg-40: rgba(28,28,28,.4);
+        --fg-10: rgba(28,28,28,.1); --ok: #2e7d4f; --bad: #a13b3b; --warn: #a3742b;
+    }
+    * { box-sizing: border-box; }
+    body {
+        margin: 0; padding: 2rem 1.25rem 5rem; background: var(--bg); color: var(--fg);
+        font-family: -apple-system, 'Inter', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    }
+    .wrap { max-width: 62rem; margin: 0 auto; }
+    h1 { font-size: 1.5rem; font-weight: 500; letter-spacing: .02em; margin: 0 0 .35rem; }
+    .sub { color: var(--fg-40); font-size: .82rem; margin: 0 0 1.75rem; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; margin-bottom: 1.25rem; }
+    .tab {
+        background: none; border: 1px solid var(--fg-10); border-radius: 999px;
+        padding: .38rem 1rem; font: inherit; font-size: .8rem; color: var(--fg-60);
+        cursor: pointer; transition: all .18s ease;
+    }
+    .tab:hover { border-color: var(--fg-40); color: var(--fg); }
+    .tab.active { background: var(--fg); border-color: var(--fg); color: var(--bg); }
+    .count { color: var(--fg-40); font-size: .78rem; margin-left: auto; }
+    .run-btn {
+        background: none; border: 1px solid var(--fg); color: var(--fg); border-radius: 0;
+        padding: .42rem 1.1rem; font: inherit; font-size: .8rem; cursor: pointer;
+    }
+    .run-btn:hover { background: var(--fg); color: var(--bg); }
+    .run-btn:disabled { opacity: .45; cursor: wait; }
+    .card {
+        border: 1px solid var(--fg-10); border-radius: 8px; background: #fff;
+        padding: 1rem 1.1rem; margin-bottom: .85rem;
+    }
+    .card__head { display: flex; flex-wrap: wrap; gap: .5rem .9rem; align-items: baseline; }
+    .card__num { font-variant-numeric: tabular-nums; color: var(--fg-40); font-size: .82rem; }
+    .card__title { font-weight: 500; font-size: .95rem; flex: 1; min-width: 12rem; }
+    .badge { font-size: .7rem; letter-spacing: .06em; padding: .16rem .55rem; border-radius: 999px; border: 1px solid; }
+    .badge--ok { color: var(--ok); border-color: var(--ok); }
+    .badge--bad { color: var(--bad); border-color: var(--bad); }
+    .badge--warn { color: var(--warn); border-color: var(--warn); }
+    .badge--muted { color: var(--fg-40); border-color: var(--fg-10); }
+    .meta { margin: .6rem 0 0; font-size: .8rem; color: var(--fg-60); line-height: 1.7; }
+    .meta b { font-weight: 500; color: var(--fg); }
+    .acts { display: flex; gap: .5rem; margin-top: .85rem; flex-wrap: wrap; }
+    .acts button {
+        background: none; border: 1px solid var(--fg-10); padding: .32rem .85rem;
+        font: inherit; font-size: .78rem; cursor: pointer; color: var(--fg-60); border-radius: 0;
+    }
+    .acts button:hover { border-color: var(--fg); color: var(--fg); }
+    .acts button[data-act="approve"]:hover { border-color: var(--ok); color: var(--ok); }
+    .acts button[data-act="reject"]:hover { border-color: var(--bad); color: var(--bad); }
+    .empty { color: var(--fg-40); font-size: .88rem; padding: 2.5rem 0; text-align: center; }
+    .msg { font-size: .82rem; margin-left: .6rem; }
+    .msg--ok { color: var(--ok); }
+    .msg--err { color: var(--bad); }
+    .thumbs { display: flex; gap: .4rem; margin-top: .6rem; flex-wrap: wrap; }
+    .thumbs img { width: 4.2rem; height: 5.4rem; object-fit: cover; border: 1px solid var(--fg-10); }
+</style>
+</head>
+<body>
+<div class="wrap">
+    <h1>AI 审核记录</h1>
+    <p class="sub">MiMo 多模态自动审核 · 通过 = 已自动放行；未通过 = 需人工复审（改标签为 approved 即上线）</p>
+
+    <div class="toolbar">
+        <button class="tab active" data-filter="all">全部</button>
+        <button class="tab" data-filter="pass">通过</button>
+        <button class="tab" data-filter="fail">未通过</button>
+        <button class="tab" data-filter="error">异常</button>
+        <button class="run-btn" id="runBtn">立即审核一轮</button>
+        <span class="msg" id="runMsg"></span>
+        <span class="count" id="count"></span>
+    </div>
+
+    <div id="list"></div>
+</div>
+
+<script>
+(function () {
+    'use strict';
+    const $ = id => document.getElementById(id);
+    const esc = s => String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+
+    let history = [];
+    let filter = 'all';
+
+    function matches(r) {
+        if (filter === 'all') return true;
+        if (filter === 'error') return !!r.error;
+        if (filter === 'pass') return !r.error && r.safe === true;
+        if (filter === 'fail') return !r.error && r.safe === false;
+        return true;
+    }
+
+    function badge(r) {
+        if (r.error) return '<span class="badge badge--warn">异常</span>';
+        if (r.safe === false) return '<span class="badge badge--bad">未通过</span>';
+        if (r.action === 'approved') return '<span class="badge badge--ok">已自动放行</span>';
+        if (r.action === 'suggested-pass') return '<span class="badge badge--ok">建议通过</span>';
+        return '<span class="badge badge--muted">' + esc(r.action || '已审核') + '</span>';
+    }
+
+    function humanBadge(r) {
+        if (r.human === 'approve') return ' <span class="badge badge--ok">人工已放行</span>';
+        if (r.human === 'reject') return ' <span class="badge badge--bad">人工已拒绝</span>';
+        if (r.human === 'pending') return ' <span class="badge badge--muted">已退回待审</span>';
+        return '';
+    }
+
+    function render() {
+        const list = $('list');
+        const rows = history.filter(matches);
+        $('count').textContent = rows.length + ' / ' + history.length + ' 条';
+        if (!rows.length) {
+            list.innerHTML = '<p class="empty">暂无记录</p>';
+            return;
+        }
+        list.innerHTML = rows.map(r => {
+            const cats = (r.categories || []).length ? (r.categories || []).join('、') : '无';
+            const imgs = r.imageUrls && r.imageUrls.length
+                ? '<div class="thumbs">' + r.imageUrls.slice(0, 6).map(u => '<img src="' + esc(u) + '" alt="" loading="lazy">').join('') + '</div>'
+                : '';
+            const acts = r.error ? '' : (
+                '<div class="acts">'
+                + '<button data-act="approve" data-num="' + r.number + '">放行</button>'
+                + '<button data-act="reject" data-num="' + r.number + '">拒绝</button>'
+                + '<button data-act="pending" data-num="' + r.number + '">退回待审</button>'
+                + '<span class="msg" data-msg="' + r.number + '"></span>'
+                + '</div>');
+            return '<div class="card">'
+                + '<div class="card__head">'
+                + '<span class="card__num">#' + r.number + '</span>'
+                + '<span class="card__title">' + esc(r.title || '') + '</span>'
+                + badge(r) + humanBadge(r)
+                + '</div>'
+                + '<p class="meta">'
+                + '<b>文本</b>：' + (r.textSafe === false ? '有问题' : '安全')
+                + ' · <b>图片</b>：' + (r.imageSafe === false ? '有问题' : '安全')
+                + ' · <b>类别</b>：' + esc(cats)
+                + ' · <b>抽查</b>：' + (r.sampled && r.sampled.length ? '第 ' + r.sampled.join('、') + ' 张 / 共 ' + r.images + ' 张' : r.images + ' 张')
+                + (r.tokens ? ' · <b>tokens</b>：' + r.tokens : '')
+                + '<br><b>理由</b>：' + esc(r.reason || r.error || '—')
+                + (r.reviewedAt ? '<br><b>时间</b>：' + esc(String(r.reviewedAt).replace('T', ' ').slice(0, 19)) : '')
+                + '</p>'
+                + imgs
+                + acts
+                + '</div>';
+        }).join('');
+    }
+
+    async function load() {
+        try {
+            const d = await (await fetch('/api/plugins/ai-review/history')).json();
+            history = d.history || [];
+            render();
+        } catch (e) {
+            $('list').innerHTML = '<p class="empty">加载失败：' + esc(e.message) + '</p>';
+        }
+    }
+
+    $('list').addEventListener('click', async e => {
+        const btn = e.target.closest('[data-act]');
+        if (!btn) return;
+        const num = parseInt(btn.dataset.num, 10);
+        const msg = document.querySelector('[data-msg="' + num + '"]');
+        btn.disabled = true;
+        try {
+            const res = await fetch('/api/plugins/ai-review/resolve', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ number: num, action: btn.dataset.act })
+            });
+            const j = await res.json();
+            if (!res.ok) throw new Error(j.error || ('http ' + res.status));
+            if (msg) { msg.textContent = '✅ 已' + (btn.dataset.act === 'approve' ? '放行' : btn.dataset.act === 'reject' ? '拒绝' : '退回'); msg.className = 'msg msg--ok'; }
+            await load();
+        } catch (err) {
+            if (msg) { msg.textContent = '❌ ' + err.message; msg.className = 'msg msg--err'; }
+            btn.disabled = false;
+        }
+    });
+
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            filter = tab.dataset.filter;
+            render();
+        });
+    });
+
+    $('runBtn').addEventListener('click', async () => {
+        const btn = $('runBtn'), msg = $('runMsg');
+        btn.disabled = true;
+        msg.textContent = '审核中…（多图需数十秒）';
+        msg.className = 'msg';
+        try {
+            const res = await fetch('/api/plugins/ai-review/run', { method: 'POST' });
+            const j = await res.json();
+            if (!res.ok) throw new Error(j.error || ('http ' + res.status));
+            msg.textContent = '✅ ' + (j.status || '完成');
+            msg.className = 'msg msg--ok';
+            await load();
+        } catch (e) {
+            msg.textContent = '❌ ' + e.message;
+            msg.className = 'msg msg--err';
+        }
+        btn.disabled = false;
+    });
+
+    load();
+})();
+</script>
+</body>
+</html>

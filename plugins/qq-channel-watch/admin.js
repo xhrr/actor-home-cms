@@ -46,13 +46,13 @@
                     </div>
                     <div class="form-group">
                         <label>每次拉取条数</label>
-                        <input type="number" id="qcw-count" min="1" max="50" value="${window.AdminCMS.esc(data.count || 20)}">
+                        <input type="number" id="qcw-count" min="1" max="50" value="${window.AdminCMS.esc(data.count != null ? data.count : 20)}">
                     </div>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
                         <label>轮询间隔（分钟）</label>
-                        <input type="number" id="qcw-interval" min="1" value="${window.AdminCMS.esc(data.pollInterval || 10)}">
+                        <input type="number" id="qcw-interval" min="1" value="${window.AdminCMS.esc(data.pollInterval != null ? data.pollInterval : 10)}">
                     </div>
                     <div class="form-group">
                         <label>关键词过滤（可选，标题/正文包含才收录）</label>
