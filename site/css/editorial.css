@@ -2449,12 +2449,27 @@ a.footer__credits-name:hover {
         background: none;
         animation: touchChevronWave 1s ease-in-out infinite;
     }
-    /* feature 列表的 title::after 桌面态是 hover 下划线（特异性更高），触屏下中和为 chevron */
+    /* feature 列表的 title::after 桌面态是 hover 下划线（特异性更高），触屏下必须完整覆盖为 chevron：
+       仅改尺寸不够——content 仍是空串、height 仍被 1px 下划线规则影响，会渲染成一条斜线 */
     .works__list--feature .work-item__title::after {
+        content: '';
         display: inline-block;
         width: .42em;
         height: .42em;
+        margin-left: .55em;
+        border-top: 1px solid currentColor;
+        border-right: 1px solid currentColor;
         background: none;
+        transform: rotate(45deg);
+        vertical-align: .08em;
+        animation: touchChevronWave 1s ease-in-out infinite;
+    }
+    /* 触屏 hover 会粘住：桌面态的 hover 下划线规则必须禁掉，否则点击后拉出一条长线 */
+    .works__list--feature .work-item:hover .work-item__title::after {
+        width: .42em;
+    }
+    .works__list--feature .work-item:hover .work-item__title {
+        font-style: normal;
     }
     .work-item:active .work-item__title::after {
         color: var(--fg);
@@ -2543,4 +2558,53 @@ a.footer__credits-name:hover {
 }
 .gallery-filter__row--month .gallery-filter__link {
     font-size: 0.72rem;
+}
+
+/* ===== 滚动性能：屏外内容跳过渲染（长列表 / 大量图片时显著减少合成开销） =====
+   contain-intrinsic-size 给屏外元素估算高度，避免滚动条跳动 */
+.album-card,
+.gallery__item,
+.work-item,
+.news-item,
+.award-item,
+.schedule-item {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 300px;
+}
+
+/* ===== Hero 图片入场/出场动效 =====
+   入场用 @keyframes（加类即播放，不依赖「两个状态分帧」——transition 方案在缓存命中时
+   会因两态同帧合并被跳过）；出场用 transition（响应滚动状态切换，语义更自然）。
+   初始隐藏必须由 JS 加的 .hero-enter 守卫：脚本异常时图片默认可见，不会永久透明。
+   注：退场动效已移除（站长反馈效果不佳），仅保留入场。 */
+@keyframes heroImgIn {
+    from { opacity: 0; transform: translateY(18px) scale(1.06); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes heroContentIn {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: none; }
+}
+/* 用 longhand 分开写：① 规避「animation 简写 + var() timing-function 整条失效」的坑
+   ② 便于在无浏览器环境（jsdom 不支持 animation 简写解析）验证 */
+.hero.hero-enter .hero__media img {
+    animation-name: heroImgIn;
+    animation-duration: 1.6s;
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+    animation-fill-mode: both;
+}
+.hero.hero-enter .hero__content {
+    animation-name: heroContentIn;
+    animation-duration: 0.9s;
+    animation-delay: 0.3s;
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+    animation-fill-mode: both;
+}
+@media (prefers-reduced-motion: reduce) {
+    .hero.hero-enter .hero__media img,
+    .hero.hero-enter .hero__content {
+        animation-name: none;
+        opacity: 1;
+        transform: none;
+    }
 }

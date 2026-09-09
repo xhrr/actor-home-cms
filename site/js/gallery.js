@@ -195,6 +195,33 @@
         });
     }
 
+    /** 滚动显现：元素进入视口时补 .is-visible（带 stagger 错开），无 IO 则立即显示。
+        之前是「渲染后同步全部加 is-visible」——初始态与揭示态同帧，过渡被跳过，卡片直接出现无动画。 */
+    let revealIO = null; // 单例：搜索/筛选反复重渲染时复用，避免 observer 泄漏
+    function revealOnScroll(elements, stagger = 60) {
+        const list = Array.from(elements);
+        if (!list.length) return;
+        // 断开上一批的观察（列表已重渲染，旧元素不再需要）
+        if (revealIO) { revealIO.disconnect(); revealIO = null; }
+        if (typeof window.IntersectionObserver === 'undefined') {
+            list.forEach(el => el.classList.add('is-visible'));
+            return;
+        }
+        revealIO = new IntersectionObserver(entries => {
+            let i = 0;
+            entries.forEach(entry => {
+                if (!entry.isIntersecting) return;
+                const el = entry.target;
+                // 同批进入视口的按序错开，形成瀑布式浮现
+                el.style.setProperty('--stagger', (i * stagger) + 'ms');
+                i++;
+                el.classList.add('is-visible');
+                revealIO.unobserve(el);
+            });
+        }, { threshold: 0.08, rootMargin: '0px 0px -30px 0px' });
+        list.forEach(el => revealIO.observe(el));
+    }
+
     function renderAlbumCards() {
         const q = gallerySearchQuery.trim().toLowerCase();
         const match = a => !q || [a.title, a.author].some(f => String(f || '').toLowerCase().includes(q));
@@ -239,8 +266,8 @@
                 }).join('')}
             </div>
         `;
-        // 主题 CSS 将卡片初始隐藏（opacity:0），搜索重渲染的卡片必须补揭示类，否则停在透明态
-        Array.prototype.forEach.call(grid.querySelectorAll('.album-card'), el => el.classList.add('is-visible'));
+        // 卡片初始隐藏（opacity:0），进入视口时滚动显现（搜索/筛选重渲染的卡片同样走这条路径）
+        revealOnScroll(grid.querySelectorAll('.album-card'));
     }
 
     /** 筛选行渲染（只重绘筛选容器，不动搜索框）；样式与 works-filter 文本筛选同语言 */
@@ -344,6 +371,7 @@
         const holder = document.createElement('div');
         holder.innerHTML = masonryItemHtml(it);
         const fig = holder.firstElementChild;
+        it._el = fig; // 供尺寸修正时定位
         state.colEls[ci].appendChild(fig);
         // 下一帧再揭示：让 opacity 过渡（显现淡入）真实播放
         requestAnimationFrame(() => fig.classList.add('is-visible'));
@@ -359,6 +387,8 @@
         }
     }
 
+    /** 先插入后测：用占位比例立即布局（首屏秒出），图片加载后按真实比例修正该条目。
+        相比「全部测完再插入」，避免了数百张图串行测量造成的长时间空白与卡顿。 */
     function renderMasonry(items) {
         const gen = ++masonryGeneration;
         masonryItemsData = items;
@@ -375,56 +405,54 @@
         masonryState = state;
 
         const cache = readDimsCache();
-        const queue = [];
+        // 有缓存比例的直接用；无缓存的先用占位比例 3/4 插入，加载后修正
+        const pending = [];
         items.forEach(it => {
             const c = cache[it.url];
             if (c && c[0] > 0 && c[1] > 0) it.ratio = c[0] / c[1];
-            else queue.push(it);
+            else {
+                it.ratio = 3 / 4;      // 占位：立即参与布局
+                it.pendingRatio = true; // 标记待修正
+                pending.push(it);
+            }
         });
 
-        let nextToPlace = 0;
-        let remaining = queue.length;
+        // 立即全量插入（首屏即可见，无需等待任何测量）
         let placed = 0;
-
-        function flush() {
-            if (gen !== masonryGeneration) return;
-            while (nextToPlace < items.length && items[nextToPlace].ratio !== undefined) {
-                const it = items[nextToPlace++];
-                if (!it.failed) { masonryAppendInto(state, it); placed++; }
-            }
-            if (remaining > 0) masonryStatus(`正在解析图片尺寸… 剩余 ${remaining} 张`);
-            else masonryStatus('');
-            if (nextToPlace >= items.length && !placed && items.length) {
-                grid.innerHTML = '<p class="gallery-page__empty">图片暂时无法加载</p>';
-                masonryState = null;
-            }
+        for (const it of items) {
+            masonryAppendInto(state, it);
+            placed++;
         }
+        masonryStatus('');
 
+        // 后台修正：并发探测真实尺寸，只改自己那条的 aspect-ratio（不搬动其他条目）
         let active = 0, qi = 0;
         function pump() {
             if (gen !== masonryGeneration) return;
-            while (active < MASONRY_MAX_PARALLEL && qi < queue.length) {
-                const it = queue[qi++];
+            while (active < MASONRY_MAX_PARALLEL && qi < pending.length) {
+                const it = pending[qi++];
                 active++;
                 const im = new Image();
                 const done = (w, h, failed) => {
-                    if (gen !== masonryGeneration || it.ratio !== undefined) return;
+                    if (gen !== masonryGeneration || !it.pendingRatio) return;
                     active--;
-                    remaining--;
-                    if (failed) it.failed = true;
-                    it.ratio = (w > 0 && h > 0) ? w / h : 3 / 4;
-                    if (!failed && w > 0) { cache[it.url] = [w, h]; writeDimsCache(cache); }
-                    flush();
+                    it.pendingRatio = false;
+                    if (failed || !(w > 0 && h > 0)) return; // 失败保持占位比例，不阻塞
+                    const ratio = w / h;
+                    it.ratio = ratio;
+                    cache[it.url] = [w, h];
+                    writeDimsCache(cache);
+                    // 只更新该条目的 aspect-ratio（高度随之变化，但不触发其他条目重排）
+                    const el = it._el;
+                    if (el) el.style.aspectRatio = String(ratio);
                     pump();
                 };
                 im.onload = () => done(im.naturalWidth, im.naturalHeight, false);
                 im.onerror = () => done(0, 0, true);
-                setTimeout(() => { if (it.ratio === undefined) done(3 / 4, 1, false); }, MASONRY_TIMEOUT);
+                setTimeout(() => { if (it.pendingRatio) done(0, 0, true); }, MASONRY_TIMEOUT);
                 im.src = it.url;
             }
         }
-
-        flush();
         pump();
     }
 
@@ -544,10 +572,8 @@
         renderList();
     }
 
-    // 动态内容直接显示，避免滚动动画隐藏
-    Array.prototype.forEach.call(grid.querySelectorAll('.gallery__item, .album-card'), el => {
-        el.classList.add('is-visible');
-    });
+    // 列表页卡片走滚动显现；瀑布流条目由 masonryAppendInto 逐条揭示（见上）
+    revealOnScroll(grid.querySelectorAll('.album-card'));
 
     bindLightbox();
     setupNav();

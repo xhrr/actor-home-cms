@@ -214,6 +214,21 @@
                   .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
     }
 
+    /* 全局滚动状态：单一监听 + rAF 节流（避免多处监听同一状态互相覆盖、每帧多次布局） */
+    let scrollRaf = null;
+    function bindScrollState(nav) {
+        const apply = () => {
+            scrollRaf = null;
+            const scrolled = window.scrollY > 40;
+            nav.classList.toggle('nav--scrolled', scrolled);
+            nav.classList.toggle('nav--hidden', !scrolled);
+            nav.classList.toggle('nav--visible', scrolled);
+        };
+        const onScroll = () => { if (!scrollRaf) scrollRaf = requestAnimationFrame(apply); };
+        window.addEventListener('scroll', onScroll, { passive: true });
+        apply();
+    }
+
     function initNavShell() {
         const C = window.SITE_CONFIG || {};
         const logo = document.getElementById('navLogo');
@@ -224,9 +239,15 @@
         }
         const nav = document.getElementById('nav');
         if (!nav) return;
-        const onScroll = () => nav.classList.toggle('nav--scrolled', window.scrollY > 40);
-        window.addEventListener('scroll', onScroll, { passive: true });
-        onScroll();
+        // 滚动状态统一由 window.CMS.bindScrollState 管理（rAF 节流 + 单一监听）：
+        // 此前 cms.js(阈值 40) 与 main.js(阈值 80) 各自注册 scroll 并操作同一个 nav--scrolled，互相覆盖
+        if (window.CMS && typeof window.CMS.bindScrollState === 'function') {
+            window.CMS.bindScrollState(nav);
+        } else {
+            const onScroll = () => nav.classList.toggle('nav--scrolled', window.scrollY > 40);
+            window.addEventListener('scroll', onScroll, { passive: true });
+            onScroll();
+        }
         const toggle = document.getElementById('navToggle');
         if (!toggle || !links) return;
         const close = () => {
@@ -398,6 +419,7 @@
         loadScript,
         buildNavLinks,
         initNavShell,
+        bindScrollState,
         revealNow,
         openShareModal,
         copyToClipboard,

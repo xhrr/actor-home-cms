@@ -23,6 +23,38 @@
         if (logo && C.actor && C.actor.nameEn) logo.textContent = C.actor.nameEn;
     }
 
+    /* ---------- Hero 图片入场 ----------
+       图片加载完成后淡入 + 从下往上位移 + 缓慢放大归位（避免整块 hero 一起出现）。
+       注：退场动效已移除（站长反馈效果不佳），仅保留入场。 */
+    function initHeroEnter() {
+        const hero = document.querySelector('.hero');
+        if (!hero) return;
+        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            hero.classList.add('hero-enter');
+            return;
+        }
+        const img = hero.querySelector('.hero__media img');
+        // 加 .hero-enter 即触发入场动画（CSS @keyframes）；不加则图片默认可见，脚本异常也不会永久透明
+        let entered = false;
+        const enter = () => {
+            if (entered) return; // 幂等：load / error / 超时可能都触发
+            entered = true;
+            // @keyframes 加类即播放，无需分帧/强制回流
+            hero.classList.add('hero-enter');
+        };
+        if (img) {
+            // 图片已缓存则立即入场；否则等 load（最多等 1.5s，避免慢图卡住内容）
+            if (img.complete && img.naturalWidth > 0) enter();
+            else {
+                img.addEventListener('load', enter, { once: true });
+                img.addEventListener('error', enter, { once: true });
+                setTimeout(enter, 1500);
+            }
+        } else {
+            enter();
+        }
+    }
+
     function initHeroSplit() {
         document.querySelectorAll('[data-hero-split]').forEach(section => {
             const cols = Array.from(section.querySelectorAll('.split-col'));
@@ -39,17 +71,28 @@
                 cols.forEach((col, idx) => col.classList.toggle('is-active', idx === i));
             };
 
-            // 用几何计算代替 elementFromPoint（每帧最多一次 getBoundingClientRect）
-            const resolveIndex = (x, y) => {
+            // 列几何缓存：只在初始化与 resize 时测量，pointer 移动时零布局查询
+            let colGeom = null; // { left, right, top, bottom, widths: [] }
+            const measure = () => {
                 const rect = section.getBoundingClientRect();
-                if (y < rect.top || y > rect.bottom || x < rect.left || x > rect.right) return activeIndex;
-                let acc = rect.left;
-                for (let i = 0; i < cols.length; i++) {
-                    const w = cols[i].getBoundingClientRect().width;
-                    if (x < acc + w) return i;
-                    acc += w;
+                colGeom = {
+                    left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom,
+                    widths: cols.map(c => c.getBoundingClientRect().width)
+                };
+            };
+            measure();
+            window.addEventListener('resize', () => { if (!rafId) rafId = requestAnimationFrame(() => { rafId = 0; measure(); }); }, { passive: true });
+
+            const resolveIndex = (x, y) => {
+                if (!colGeom) return activeIndex;
+                const g = colGeom;
+                if (y < g.top || y > g.bottom || x < g.left || x > g.right) return activeIndex;
+                let acc = g.left;
+                for (let i = 0; i < g.widths.length; i++) {
+                    if (x < acc + g.widths[i]) return i;
+                    acc += g.widths[i];
                 }
-                return cols.length - 1;
+                return g.widths.length - 1;
             };
 
             const frame = () => {
@@ -81,14 +124,9 @@
     function bindNav() {
         const nav = document.getElementById('nav');
         if (!nav) return;
-        const onScroll = () => {
-            const scrolled = window.scrollY > 80;
-            nav.classList.toggle('nav--scrolled', scrolled);
-            nav.classList.toggle('nav--hidden', !scrolled);
-            nav.classList.toggle('nav--visible', scrolled);
-        };
-        window.addEventListener('scroll', onScroll, { passive: true });
-        onScroll();
+        // 滚动状态统一交给 CMS.bindScrollState（单一监听 + rAF 节流）；
+        // 此前这里与 cms.js 各注册一个 scroll 且阈值不同（80 vs 40），互相覆盖造成额外重绘
+        if (window.CMS && typeof window.CMS.bindScrollState === 'function') window.CMS.bindScrollState(nav);
 
         const toggle = document.getElementById('navToggle');
         const links = document.getElementById('navLinks');
@@ -179,6 +217,7 @@
 
         rebuildNav(modules);
         bindNav();
+        initHeroEnter();
         initHeroSplit();
         initDisclaimer();
         initShare();

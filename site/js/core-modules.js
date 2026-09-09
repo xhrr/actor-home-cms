@@ -30,6 +30,7 @@ window.CMS.registerModule('hero', function (mod) {
     <div class="hero__media">
         <img src="${img}" alt="${name}" onerror="this.parentElement.classList.add('is-empty')">
     </div>
+
     ${hasMobile ? `
     <div class="hero__mobile" aria-hidden="true">
         ${por ? `<img class="mobile-por" src="${por}" alt="${name}" loading="lazy" decoding="async" onerror="this.style.display='none'">` : ''}
