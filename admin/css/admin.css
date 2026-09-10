@@ -153,25 +153,7 @@ a { text-decoration: none; color: inherit; }
 .mobile-toggle--active span:nth-child(2) { opacity: 0; }
 .mobile-toggle--active span:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
 
-@media (max-width: 768px) {
-    .sidebar { transform: translateX(-100%); }
-    .sidebar--open { transform: translateX(0); }
-    .mobile-toggle { display: flex; }
-    .main { margin-left: 0; padding: 3.5rem 1rem 1rem; }
-    .topbar {
-        align-items: flex-start;
-        flex-direction: column;
-        gap: 0.75rem;
-    }
-    .topbar__actions {
-        width: 100%;
-        justify-content: space-between;
-    }
-    .section-card {
-        padding: 1rem;
-        border-radius: 6px;
-    }
-}
+/* 注：移动端规则统一集中在文件末尾，避免被后方同权重规则覆盖（此处曾有失效的 @media 块）*/
 
 /* ========== Main Content ========== */
 .main {
@@ -1217,3 +1199,81 @@ a { text-decoration: none; color: inherit; }
     color: var(--color-text-light);
     user-select: none;
 }
+
+/* ===================================================================
+   移动端适配（统一放在文件末尾，确保不被前方同权重规则覆盖）
+   背景：此前的 @media 块写在 .main/.topbar/.section-card 定义之前，
+   同权重下被后方规则覆盖 → 手机端 .main 仍留 240px 左边距、内容被挤到右侧。
+   =================================================================== */
+@media (max-width: 900px) {
+    /* 侧栏改为抽屉：默认移出视口，点汉堡键滑入；遮罩点击关闭 */
+    .sidebar { transform: translateX(-100%); }
+    .sidebar--open { transform: translateX(0); }
+    .mobile-toggle { display: flex; }
+
+    /* 主区占满整宽（关键修复：覆盖 240px 左边距） */
+    .main {
+        margin-left: 0;
+        padding: 3.75rem 1rem 1.5rem;
+        max-width: none;
+        width: 100%;
+    }
+
+    .topbar {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+    .topbar__title { font-size: 1.05rem; }
+    .topbar__actions {
+        width: 100%;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    /* 搜索框占满一行，结果面板改为跟随父宽（原固定 380px 会超出屏幕） */
+    .global-search { flex: 1 1 100%; min-width: 0; }
+    .global-search input { width: 100%; }
+    .global-search__results {
+        width: auto;
+        left: 0;
+        right: 0;
+        max-height: 55vh;
+    }
+    .topbar__actions .btn { flex: 0 0 auto; }
+
+    .section-card { padding: 1rem; border-radius: 6px; overflow-x: hidden; }
+
+    /* 触屏可点性：主要控件加大到 ≥40px */
+    input, textarea, select { font-size: 16px; }   /* ≥16px 防 iOS 聚焦缩放 */
+    .btn, .btn--sm { min-height: 40px; }
+    .pager__nav, .pager__num { min-width: 2.5rem; height: 2.5rem; }
+
+    /* 表格式行（作品/图集）在窄屏改单列，避免挤成两栏难读 */
+    .work-item, .list-item { grid-template-columns: 1fr; }
+    .form-row { grid-template-columns: 1fr; }
+
+    /* 预览面板移动端占满，不再固定宽度 */
+    .preview-panel { width: 100%; }
+}
+
+/* 更窄的手机（≤480）：进一步收紧间距 */
+@media (max-width: 480px) {
+    .main { padding: 3.5rem 0.75rem 1.25rem; }
+    .section-card { padding: 0.85rem; }
+    .topbar__title { font-size: 1rem; }
+    .global-search__results { max-height: 50vh; }
+    .modal, .preview-panel { border-radius: 0; }
+    .pager { gap: 0.25rem; }
+    .pager__nav { padding: 0 0.45rem; font-size: 0.75rem; }
+}
+
+/* 移动端侧栏遮罩（点空白/切分区后关闭抽屉） */
+.sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 90;              /* 低于 .sidebar(100)，高于内容 */
+    -webkit-tap-highlight-color: transparent;
+}
+.sidebar-backdrop.is-open { display: block; }

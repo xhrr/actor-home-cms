@@ -1568,9 +1568,26 @@
         const toggle = $('#mobileToggle');
         const sidebar = $('#sidebar');
         if (toggle && sidebar) {
-            toggle.addEventListener('click', () => {
-                const open = sidebar.classList.toggle('sidebar--open');
+            // 移动端抽屉遮罩：点空白关闭侧栏（随需创建，避免改 HTML 结构）
+            let backdrop = document.getElementById('sidebarBackdrop');
+            if (!backdrop) {
+                backdrop = document.createElement('div');
+                backdrop.id = 'sidebarBackdrop';
+                backdrop.className = 'sidebar-backdrop';
+                document.body.appendChild(backdrop);
+            }
+            const setSidebar = open => {
+                sidebar.classList.toggle('sidebar--open', open);
                 toggle.classList.toggle('mobile-toggle--active', open);
+                backdrop.classList.toggle('is-open', open);
+            };
+            toggle.addEventListener('click', () => setSidebar(!sidebar.classList.contains('sidebar--open')));
+            backdrop.addEventListener('click', () => setSidebar(false));
+            // Esc 关闭
+            document.addEventListener('keydown', e => { if (e.key === 'Escape') setSidebar(false); });
+            // 切分区后自动收起（窄屏点完菜单应让出内容区）
+            document.querySelectorAll('.sidebar__link').forEach(link => {
+                link.addEventListener('click', () => { if (window.innerWidth <= 900) setSidebar(false); });
             });
         }
     }
