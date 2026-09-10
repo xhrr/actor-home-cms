@@ -11,7 +11,9 @@ const TYPE_ALIASES = {
     news: 'news', 动态: 'news',
     awards: 'awards', 荣誉: 'awards', 奖项: 'awards',
     schedule: 'schedule', 行程: 'schedule',
-    comment: 'comment', 评论: 'comment', 留言: 'comment'
+    comment: 'comment', 评论: 'comment', 留言: 'comment',
+    // 补充/更新已有内容：按稳定 id 定位条目，把图片追加到已有图片之后
+    append: 'append', 追加: 'append', 补充: 'append', 补充图片: 'append', 更新: 'append'
 };
 
 function parseIssueBody(body) {
@@ -97,6 +99,61 @@ function normalizeRepo(repo) {
     r = r.replace(/^git@github\.com:/i, '');
     r = r.replace(/\/+$/, '');
     return r;
+}
+
+/** 目标 id 归一：支持裸 id（a-xxxx / w-xxxx）或含 ?album=/?work= 的详情页 URL */
+function normalizeTargetId(raw) {
+    const s = String(raw || '').trim();
+    if (!s) return '';
+    if (/^https?:\/\//i.test(s)) {
+        try {
+            const u = new URL(s);
+            const v = u.searchParams.get('album') || u.searchParams.get('work');
+            return v ? v.trim().slice(0, 40) : '';
+        } catch (e) { return ''; }
+    }
+    return s.slice(0, 40);
+}
+
+/** 按稳定 id 在 config 中定位带图条目（写真集 / 作品） */
+function findEntryById(config, id) {
+    const albums = (config.gallery && config.gallery.albums) || [];
+    const album = albums.find(a => a && a.id === id);
+    if (album) return { kind: 'album', entry: album };
+    for (const cat of (config.works && config.works.categories) || []) {
+        for (const it of (cat.items || [])) {
+            if (it && it.id === id) return { kind: 'works', entry: it };
+        }
+    }
+    return null;
+}
+
+// 追加时可携带的元数据补丁：entryKey <- 解析器小写键候选。
+// 仅覆盖本次明确提供且非空的字段，不做结构变更（分类迁移等需另行处理）。
+// 注意：title 不可通过 append 修改（补充只加图片，标题不动）。
+const APPEND_PATCH_KEYS = {
+    album: [
+        ['author', ['author']],
+        ['date', ['date']],
+        ['sourceUrl', ['sourceurl', 'source', 'link']]
+    ],
+    works: [
+        ['year', ['year']],
+        ['director', ['director']],
+        ['role', ['role']],
+        ['synopsis', ['synopsis', 'summary']],
+        ['sourceUrl', ['sourceurl', 'source', 'link']],
+        ['type', ['typename', 'worktype']]
+    ]
+};
+
+/** 取补丁值：按候选小写键取第一个非空值 */
+function patchValue(parsed, keys) {
+    for (const k of keys) {
+        const v = parsed[k];
+        if (v !== undefined && String(v).trim() !== '') return String(v).trim();
+    }
+    return '';
 }
 
 function applyIssueToConfig(config, parsed, issueNumber) {
@@ -198,6 +255,48 @@ function applyIssueToConfig(config, parsed, issueNumber) {
             sourceUrl: parsed.sourceurl || parsed.source || parsed.link || ''
         });
         return `行程「${parsed.event || parsed.title || '未命名'}」已添加`;
+    }
+
+    if (type === 'append') {
+        // 补充已有内容：按稳定 id 定位条目，图片追加到已有图片之后（同 id 去重）
+        const targetId = normalizeTargetId(parsed.id || parsed.target || parsed.targetid || parsed.targetId);
+        if (!targetId) throw new Error('缺少目标 id（id 字段，可填实体 ID 或详情页链接）');
+        const hit = findEntryById(config, targetId);
+        if (!hit) throw new Error(`未找到 id 为 ${targetId} 的内容`);
+        const box = hit.entry;
+        const incoming = (parsed.images || [])
+            .map(u => String(u || '').trim())
+            .filter(u => /^https?:\/\//i.test(u));
+        if (!incoming.length) throw new Error('未提供图片（images）');
+
+        const existing = Array.isArray(box.images) ? box.images : [];
+        const seen = new Set(existing);
+        const added = [];
+        for (const u of incoming) {
+            if (!seen.has(u)) { seen.add(u); added.push(u); }
+        }
+        if (!added.length) return `「${box.title || targetId}」未新增图片（均已存在）`;
+
+        box.images = existing.concat(added);
+        // 可选元数据补丁：仅覆盖本次明确提供的字段（空值不动）
+        for (const [entryKey, candidates] of (APPEND_PATCH_KEYS[hit.kind] || [])) {
+            const raw = patchValue(parsed, candidates);
+            if (!raw) continue;
+            if (entryKey === 'date') {
+                const norm = raw.replace(/[./]/g, '-');
+                if (/^\d{4}-\d{2}-\d{2}$/.test(norm)) box.date = norm;
+            } else if (entryKey === 'sourceUrl') {
+                if (/^https?:\/\//i.test(raw)) box.sourceUrl = raw.slice(0, 300);
+            } else {
+                box[entryKey] = raw.slice(0, 300);
+            }
+        }
+        // 首图兜底：目标原先没有封面/海报时，用本次首张补齐
+        if (hit.kind === 'album' && !box.cover) box.cover = added[0];
+        if (hit.kind === 'works' && !box.poster) box.poster = added[0];
+
+        const label = hit.kind === 'album' ? '写真集' : '作品';
+        return `已为${label}「${box.title || targetId}」追加 ${added.length} 张图片（现共 ${box.images.length} 张）`;
     }
 
     throw new Error('不支持的 type: ' + type);

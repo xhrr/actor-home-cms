@@ -1164,3 +1164,56 @@ a { text-decoration: none; color: inherit; }
 .comment-admin__page.is-collapsed .comment-admin__row {
     display: none;
 }
+
+/* 写真集数字分页（条目可达数百，分页渲染避免一次建上千个表单字段） */
+.pager {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    padding: 1.25rem 0 0.5rem;
+}
+.pager__nav,
+.pager__num {
+    min-width: 2rem;
+    height: 2rem;
+    padding: 0 0.6rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: var(--color-text-muted);
+    font: inherit;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+}
+.pager__num:hover,
+.pager__nav:hover:not(:disabled) {
+    background: rgba(200, 164, 107, 0.12);
+    color: var(--color-accent-hover);
+}
+.pager__num.is-active {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: #fff;
+    font-weight: 600;
+}
+.pager__num.is-active:hover {
+    background: var(--color-accent-hover);
+    color: #fff;
+}
+.pager__nav:disabled {
+    color: var(--color-text-light);
+    cursor: default;
+    opacity: 0.5;
+}
+.pager__gap {
+    min-width: 1.5rem;
+    text-align: center;
+    color: var(--color-text-light);
+    user-select: none;
+}

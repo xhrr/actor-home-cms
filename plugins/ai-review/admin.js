@@ -17,13 +17,26 @@
                 </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label>待审标签</label>
-                        <input type="text" id="ar-pending" value="${window.AdminCMS.esc(data.pendingLabels || 'content-pending,comment-pending')}">
-                        <p class="form-help">逗号分隔，多个来源（投稿/评论）都覆盖。</p>
+                        <label>跳过标签</label>
+                        <input type="text" id="ar-skip" value="${window.AdminCMS.esc(data.skipLabels || '')}" placeholder="留空 = 不跳过">
+                        <p class="form-help">命中的标签一律不审核。留空即「只要未审核过就审」。</p>
                     </div>
+                    <div class="form-group">
+                        <label>待审标记（完成时移除）</label>
+                        <input type="text" id="ar-pending" value="${window.AdminCMS.esc(data.pendingLabels || 'content-pending,comment-pending')}">
+                        <p class="form-help">提交网关打的标签；审核完成后会移除（表示不再待审）。</p>
+                    </div>
+                </div>
+                <p class="form-help" style="margin:-0.4rem 0 0.8rem">审核范围：<b>全部 open Issue 中，未带「${window.AdminCMS.esc(data.reviewedLabel || 'ai-reviewed')}」标签的都会被审核</b>——包括直接在 GitHub 手动新建、没有任何标签的 Issue。</p>
+                <div class="form-row">
                     <div class="form-group">
                         <label>放行标签</label>
                         <input type="text" id="ar-approved" value="${window.AdminCMS.esc(data.approvedLabel || 'approved')}">
+                    </div>
+                    <div class="form-group">
+                        <label>已审核标签</label>
+                        <input type="text" id="ar-reviewed" value="${window.AdminCMS.esc(data.reviewedLabel || 'ai-reviewed')}">
+                        <p class="form-help">队列判据：带此标签的不再审核。</p>
                     </div>
                 </div>
                 <div class="form-row">
@@ -65,7 +78,9 @@
             const g = id => { const el = document.getElementById(id); return el ? el.value : ''; };
             return {
                 pendingLabels: g('ar-pending').trim() || 'content-pending,comment-pending',
+                skipLabels: g('ar-skip').trim(),
                 approvedLabel: g('ar-approved').trim() || 'approved',
+                reviewedLabel: g('ar-reviewed').trim() || 'ai-reviewed',
                 sampleCount: parseInt(g('ar-sample'), 10) || 3,
                 pollInterval: parseInt(g('ar-interval'), 10) || 15,
                 llmModel: g('ar-model').trim(),
@@ -102,7 +117,9 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             pendingLabels: g('ar-pending').trim() || 'content-pending,comment-pending',
+                            skipLabels: g('ar-skip').trim(),
                             approvedLabel: g('ar-approved').trim() || 'approved',
+                            reviewedLabel: g('ar-reviewed').trim() || 'ai-reviewed',
                             sampleCount: parseInt(g('ar-sample'), 10) || 3,
                             pollInterval: parseInt(g('ar-interval'), 10) || 15,
                             llmModel: g('ar-model').trim(),

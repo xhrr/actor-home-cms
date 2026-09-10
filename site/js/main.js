@@ -17,7 +17,9 @@
         const links = visibleModules.map(mod => {
             const nav = window.CMS.getNav(mod.type);
             if (!nav) return '';
-            return `<li><a class="nav__link" href="${esc(nav.href)}">${esc(nav.text)}</a></li>`;
+            // 文案跟随后台「区域标题」（getNav 里是硬编码默认短名，此处覆盖）
+            const text = window.CMS.navLabel ? window.CMS.navLabel(mod.type, nav.text) : nav.text;
+            return `<li><a class="nav__link" href="${esc(nav.href)}">${esc(text)}</a></li>`;
         }).join('');
         container.innerHTML = links;
         if (logo && C.actor && C.actor.nameEn) logo.textContent = C.actor.nameEn;
@@ -70,6 +72,13 @@
                 activeIndex = i;
                 cols.forEach((col, idx) => col.classList.toggle('is-active', idx === i));
             };
+
+            // 触屏设备禁用分栏跟随：手指滑动的本意是滚动页面，touchmove 高频切列
+            // 会连续触发整列宽度 transition（layout 级重排），是移动端掉帧大户
+            if (window.matchMedia && window.matchMedia('(hover: none)').matches) {
+                activate(0, true);
+                return;
+            }
 
             // 列几何缓存：只在初始化与 resize 时测量，pointer 移动时零布局查询
             let colGeom = null; // { left, right, top, bottom, widths: [] }
@@ -205,7 +214,12 @@
 
         window.CMS.runHook('beforeRender');
 
+        // 图集数据已从主 config 拆出（data-gallery.js）：首页若有写真模块，先取回再渲染
         const modules = (C.modules || []).filter(m => m.visible !== false && window.CMS.hasRenderer(m.type));
+        if (modules.some(m => m.type === 'images') && window.CMS.loadGallery) {
+            await window.CMS.loadGallery();
+        }
+
         app.innerHTML = modules.map((mod, idx) => {
             const render = window.CMS.getRenderer(mod.type);
             return render ? render(mod, idx) || '' : '';

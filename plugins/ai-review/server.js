@@ -52,9 +52,10 @@ function mergeHistory(results) {
 
 const DEFAULTS = {
     repo: 'xhrr/QMQ-SGLXQ',
-    pendingLabels: 'content-pending,comment-pending',
+    pendingLabels: 'content-pending,comment-pending', // 审核完成后移除的「待审」标记
+    skipLabels: '',          // 明确跳过的标签（逗号分隔）；留空则只按「已审核」判定
     approvedLabel: 'approved',
-    reviewedLabel: 'ai-reviewed',
+    reviewedLabel: 'ai-reviewed',   // 队列判据：不带此标签的 open Issue 都会被审核
     rejectedLabel: 'ai-rejected',
     autoApprove: false,      // 默认建议模式：只判定不自动放行
     sampleCount: 3,          // 多图抽查张数（含首图）
@@ -119,6 +120,20 @@ async function gh(url, token, options = {}) {
     });
     if (!res.ok) throw new Error(`GitHub ${res.status}: ${(await res.text()).slice(0, 200)}`);
     return res.status === 204 ? null : res.json();
+}
+
+/** 分页拉取全部 open Issue（最多 5 页 / 500 条，防止极端情况拉爆） */
+const FETCH_PER_PAGE = 100;
+const FETCH_MAX_PAGES = 5;
+async function fetchOpenIssues(repo, token) {
+    const out = [];
+    for (let page = 1; page <= FETCH_MAX_PAGES; page++) {
+        const list = await gh(`/repos/${repo}/issues?state=open&per_page=${FETCH_PER_PAGE}&page=${page}`, token);
+        if (!Array.isArray(list) || !list.length) break;
+        out.push(...list);
+        if (list.length < FETCH_PER_PAGE) break;
+    }
+    return out;
 }
 
 /** 从 Issue 正文提取图片外链（兼容 "- url" 与裸 URL 行，与 github-issues 解析口径一致） */
@@ -197,19 +212,28 @@ async function runReview(ctx) {
     const token = tokenOf();
     if (!repo || !token) return { ok: false, error: '未配置 repo 或 GitHub Token' };
 
-    const labels = String(c.pendingLabels || '').split(',').map(s => s.trim()).filter(Boolean);
-    const issues = [];
-    for (const label of labels) {
-        try {
-            const list = await gh(`/repos/${repo}/issues?state=open&labels=${encodeURIComponent(label)}&per_page=${c.maxIssues}`, token);
-            issues.push(...list.filter(i => !i.pull_request));
-        } catch (e) {
-            ctx.log('拉取待审 Issue 失败:', label, e.message);
-        }
+    // 待审标记：审核完成后从 Issue 上移除（表示不再是待审状态）
+    const pendingList = String(c.pendingLabels || '').split(',').map(s => s.trim()).filter(Boolean);
+    // 跳过标签：命中的 Issue 一律不审核（安全阀，默认空 = 不跳过）
+    const skipLc = String(c.skipLabels || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+    const reviewedLc = String(c.reviewedLabel || '').trim().toLowerCase();
+
+    // 新口径：拉取全部 open Issue，凡是不带「已审核」(ai-reviewed) 标签的都纳入审核队列。
+    // 旧口径按待审标签拉取——直接在 GitHub 新建的 Issue 没有任何标签，会被永远漏掉。
+    // 幂等/防循环靠 reviewedLabel：每轮审完必打该标签；「退回待审」会把它清掉使其重回队列。
+    let all;
+    try {
+        all = await fetchOpenIssues(repo, token);
+    } catch (e) {
+        return { ok: false, error: '拉取 open Issue 失败：' + e.message };
     }
-    // 去重（可能同时带两个待审标签）
-    const seen = new Set();
-    const queue = issues.filter(i => (seen.has(i.number) ? false : seen.add(i.number)));
+    const queue = all.filter(i => {
+        if (i.pull_request) return false;
+        const names = (i.labels || []).map(l => String(l.name || '').toLowerCase());
+        if (reviewedLc && names.includes(reviewedLc)) return false;  // 已审核过 → 跳过
+        if (skipLc.some(s => names.includes(s))) return false;       // 命中跳过标签
+        return true;
+    });
 
     const results = [];
     for (const issue of queue.slice(0, c.maxIssues)) {
@@ -245,7 +269,7 @@ async function runReview(ctx) {
                 record.reason = 'AI 审核连续异常，已按未通过处理，请人工复审';
                 record.action = 'rejected';
                 // 必须移除待审标签，否则下一轮轮询会把同一条再次拉进来重复审核
-                const keep = record.labels.filter(l => !labels.includes(l) && l !== c.reviewedLabel && l !== c.rejectedLabel);
+                const keep = record.labels.filter(l => !pendingList.includes(l) && l !== c.reviewedLabel && l !== c.rejectedLabel);
                 try {
                     await gh(`/repos/${repo}/issues/${issue.number}`, token, {
                         method: 'PATCH',
@@ -267,7 +291,7 @@ async function runReview(ctx) {
             });
             // 通过：可自动放行（autoApprove 开启时）→ 换成 approved，交给 github-issues 固化
             if (verdict.safe && c.autoApprove) {
-                const keep = record.labels.filter(l => !labels.includes(l) && l !== c.rejectedLabel);
+                const keep = record.labels.filter(l => !pendingList.includes(l) && l !== c.rejectedLabel);
                 await gh(`/repos/${repo}/issues/${issue.number}`, token, {
                     method: 'PATCH',
                     body: JSON.stringify({ labels: [...keep, c.approvedLabel, c.reviewedLabel].filter(Boolean) })
@@ -276,7 +300,7 @@ async function runReview(ctx) {
             } else {
                 // 未开启自动放行 / 判定不通过：打审核标记 + 贴理由，等人处理
                 // ⚠️ 同时移除待审标签——否则轮询会把已审过的再次拉入，形成重复审核死循环
-                const keep = record.labels.filter(l => !labels.includes(l) && l !== c.reviewedLabel && l !== c.rejectedLabel);
+                const keep = record.labels.filter(l => !pendingList.includes(l) && l !== c.reviewedLabel && l !== c.rejectedLabel);
                 const extra = verdict.safe ? [c.reviewedLabel] : [c.reviewedLabel, c.rejectedLabel];
                 await gh(`/repos/${repo}/issues/${issue.number}`, token, {
                     method: 'PATCH',
@@ -340,13 +364,16 @@ module.exports = function (ctx) {
             const issue = await gh(`/repos/${c.repo}/issues/${number}`, token);
             const names = issue.labels.map(l => l.name);
             const pending = String(c.pendingLabels || '').split(',').map(s => s.trim()).filter(Boolean);
+            // 队列判据 = 不带 reviewedLabel；故：放行/拒绝都保留 reviewed（不再入队），
+            // 「退回待审」必须清掉 reviewed 与 approved/rejected，否则不会被重新审核
+            const stripReview = n => n !== c.reviewedLabel && n !== c.rejectedLabel;
             let next;
             if (action === 'approve') {
                 next = [...names.filter(n => !pending.includes(n) && n !== c.rejectedLabel), c.approvedLabel, c.reviewedLabel];
             } else if (action === 'reject') {
-                next = [...names.filter(n => !pending.includes(n) && n !== c.approvedLabel), c.rejectedLabel];
+                next = [...names.filter(n => !pending.includes(n) && n !== c.approvedLabel && n !== c.reviewedLabel), c.rejectedLabel, c.reviewedLabel];
             } else {
-                next = [...names.filter(n => n !== c.approvedLabel && n !== c.rejectedLabel), pending[0]];
+                next = [...names.filter(stripReview), pending[0]];
             }
             await gh(`/repos/${c.repo}/issues/${number}`, token, {
                 method: 'PATCH',

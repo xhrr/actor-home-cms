@@ -175,9 +175,18 @@ window.CMS.registerModule('hero', function (mod) {
         const albums = Array.isArray(gallery.albums) ? gallery.albums : [];
         const isPrimaryImages = C.modules.findIndex(m => m.type === 'images') === C.modules.indexOf(mod);
 
-        // 主写真模块：展示写真集封面（新增的在前，保留原索引保证 ?album= 链接正确）
+        // 主写真模块：展示写真集封面（按发帖日期降序取最新 N 个；keep 原索引供 ?album= 链接回退）
         if (isPrimaryImages && albums.length) {
-            const shown = albums.map((a, i) => ({ a, i })).reverse().slice(0, limit);
+            const shown = albums
+                .map((a, i) => ({ a, i }))
+                .sort((x, y) => {
+                    const dx = x.a.date || '', dy = y.a.date || '';
+                    if (dx && dy) return dy.localeCompare(dx) || (y.i - x.i); // 有日期：降序，同日新加的在前
+                    if (dx) return -1;                                       // 有日期优先
+                    if (dy) return 1;
+                    return y.i - x.i;                                        // 均无日期：新加的在前
+                })
+                .slice(0, limit);
             return `
 <section class="section gallery" id="gallery" data-module="images">
     <div class="section__head">

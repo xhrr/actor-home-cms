@@ -1,0 +1,12 @@
+{
+  "name": "hero-pet",
+  "label": "首页 Q 版宠物",
+  "version": "0.1.0",
+  "description": "在首页 hero 右下角显示一只 Q 版小宠物：静默时趴在 hero 与下一板块的分界线上，点击可沿线移动，向下滚动时跟随分界线上移并淡出。",
+  "author": "Actor CMS",
+  "client": "client.js",
+  "server": "server.js",
+  "admin": "admin.js",
+  "inject": true,
+  "assets": ["assets/"]
+}

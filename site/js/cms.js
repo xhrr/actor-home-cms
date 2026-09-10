@@ -208,21 +208,37 @@
         });
     }
 
+    /* 图集数据懒加载：data-gallery.js 从主 config 拆出（体量最大），用时才取。
+       页面已直接引入该脚本、或已加载过 → 立即 resolve；失败也不阻断渲染，
+       调用方取到空 albums 降级显示，而不是整页报错。 */
+    let galleryPromise = null;
+    function loadGallery() {
+        if (galleryPromise) return galleryPromise;
+        const g = window.SITE_CONFIG && window.SITE_CONFIG.gallery;
+        if (g && Array.isArray(g.albums)) { galleryPromise = Promise.resolve(); return galleryPromise; }
+        galleryPromise = loadScript('/js/data-gallery.js').catch(err => {
+            console.error('[cms] 图集数据加载失败：', err && err.message);
+        });
+        return galleryPromise;
+    }
+
     function escNav(str) {
         if (typeof str !== 'string') return '';
         return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
                   .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
     }
 
-    /* 全局滚动状态：单一监听 + rAF 节流（避免多处监听同一状态互相覆盖、每帧多次布局） */
+    /* 全局滚动状态：单一监听 + rAF 节流（避免多处监听同一状态互相覆盖、每帧多次布局）
+       alwaysVisible：子页面导航常显——子页面没有满屏 hero，顶部即内容，
+       沿用首页"顶部隐藏下滑显示"反而让导航找不到 */
     let scrollRaf = null;
-    function bindScrollState(nav) {
+    function bindScrollState(nav, alwaysVisible) {
         const apply = () => {
             scrollRaf = null;
             const scrolled = window.scrollY > 40;
             nav.classList.toggle('nav--scrolled', scrolled);
-            nav.classList.toggle('nav--hidden', !scrolled);
-            nav.classList.toggle('nav--visible', scrolled);
+            nav.classList.toggle('nav--hidden', !alwaysVisible && !scrolled);
+            nav.classList.toggle('nav--visible', alwaysVisible || scrolled);
         };
         const onScroll = () => { if (!scrollRaf) scrollRaf = requestAnimationFrame(apply); };
         window.addEventListener('scroll', onScroll, { passive: true });
@@ -242,7 +258,7 @@
         // 滚动状态统一由 window.CMS.bindScrollState 管理（rAF 节流 + 单一监听）：
         // 此前 cms.js(阈值 40) 与 main.js(阈值 80) 各自注册 scroll 并操作同一个 nav--scrolled，互相覆盖
         if (window.CMS && typeof window.CMS.bindScrollState === 'function') {
-            window.CMS.bindScrollState(nav);
+            window.CMS.bindScrollState(nav, true); // 子页面：导航常显
         } else {
             const onScroll = () => nav.classList.toggle('nav--scrolled', window.scrollY > 40);
             window.addEventListener('scroll', onScroll, { passive: true });
@@ -272,18 +288,35 @@
         });
     }
 
+    /** 模块类型 → 导航文案：跟随后台「区域标题」(config 里各分区的 heading)，
+     *  未配置则用调用方给的默认短名。首页锚点导航与子页面链接导航共用，保证两处一致。 */
+    function navLabel(type, fallback) {
+        const C = window.SITE_CONFIG || {};
+        const pd = (C.plugins && C.plugins.data) || {};
+        const pick = v => { const s = String(v == null ? '' : v).trim(); return s || fallback; };
+        switch (type) {
+            case 'about': return pick(C.about && C.about.heading);
+            case 'works': return pick(C.works && C.works.heading);
+            case 'images': return pick(C.gallery && C.gallery.heading);
+            case 'news': return pick((pd['actor-news'] || {}).heading);
+            case 'awards': return pick((pd['actor-awards'] || {}).heading);
+            case 'schedule': return pick((pd['actor-schedule'] || {}).heading);
+            default: return fallback;
+        }
+    }
+
     function buildNavLinks() {
         const C = window.SITE_CONFIG || {};
         const mods = C.modules || [];
         const vis = type => mods.some(m => m.type === type && m.visible !== false);
         const links = [];
         if (vis('hero') || vis('hero-split')) links.push({ href: '/', text: '首页' });
-        if (vis('about')) links.push({ href: '/about.html', text: '关于' });
-        if (vis('works')) links.push({ href: '/works.html', text: '作品' });
-        if (vis('images')) links.push({ href: '/gallery.html', text: '写真' });
-        if (vis('news')) links.push({ href: '/news.html', text: '动态' });
-        if (vis('awards')) links.push({ href: '/awards.html', text: '荣誉' });
-        if (vis('schedule')) links.push({ href: '/schedule.html', text: '行程' });
+        if (vis('about')) links.push({ href: '/about.html', text: navLabel('about', '关于') });
+        if (vis('works')) links.push({ href: '/works.html', text: navLabel('works', '作品') });
+        if (vis('images')) links.push({ href: '/gallery.html', text: navLabel('images', '写真') });
+        if (vis('news')) links.push({ href: '/news.html', text: navLabel('news', '动态') });
+        if (vis('awards')) links.push({ href: '/awards.html', text: navLabel('awards', '荣誉') });
+        if (vis('schedule')) links.push({ href: '/schedule.html', text: navLabel('schedule', '行程') });
         if (vis('footer')) links.push({ href: '/#footer', text: '联系' });
         return links;
     }
@@ -413,10 +446,12 @@
         registerNav,
         getRenderer,
         getNav,
+        navLabel,
         hasRenderer,
         on,
         runHook,
         loadScript,
+        loadGallery,
         buildNavLinks,
         initNavShell,
         bindScrollState,

@@ -32,8 +32,13 @@
     box-sizing: border-box;
 }
 
-html {
-    scroll-behavior: smooth;
+/* 平滑滚动仅键鼠设备启用：触屏自带惯性滚动，smooth 会与之叠加打架，
+   表现为滚动"拖泥带水"（Lenis 在触屏设备不平滑、不加 .lenis-smooth，
+   无法靠 Lenis 推荐规则覆盖，必须在源头隔离） */
+@media (hover: hover) and (pointer: fine) {
+    html {
+        scroll-behavior: smooth;
+    }
 }
 
 body {
@@ -1067,6 +1072,22 @@ a {
     visibility: visible;
     pointer-events: auto;
 }
+
+/* 移动端：页脚两个弹层（免责声明 / 制作组）改为 fixed 全宽底部浮层。
+   原「以行内 trigger 居中」定位在 trigger 靠近屏幕边缘时会整体溢出（左侧文字被裁），
+   fixed + 左右边距保证任何 trigger 位置下内容完整可读 */
+@media (max-width: 640px) {
+    .footer__disclaimer-tip,
+    .footer__credits-popup {
+        position: fixed;
+        left: 1.25rem;
+        right: 1.25rem;
+        bottom: 1.5rem;
+        width: auto;
+        max-width: none;
+        transform: none;
+    }
+}
 .footer__credits-title {
     display: block;
     margin-bottom: 0.35rem;
@@ -1684,11 +1705,22 @@ a.footer__credits-name:hover {
    =================================================================== */
 
 /* 瀑布流：手动分栏 + 追加式布局（gallery.js 先量后排），加载期零跳动。
-   栏数由 JS 按视口决定（>900px 3 栏 / >640px 2 栏 / 其余 1 栏） */
+   栏数由 JS 按视口决定（>900px 3 栏 / 其余 2 栏） */
 .album-masonry {
     display: flex;
     align-items: flex-start;
     gap: 1.5rem;
+}
+
+/* 移动端 2 栏：收窄栏距与条目间距（1.5rem 在窄屏占比过大） */
+@media (max-width: 900px) {
+    .album-masonry {
+        gap: 0.75rem;
+    }
+
+    .album-masonry .gallery__item {
+        margin-bottom: 0.75rem;
+    }
 }
 
 .album-masonry__col {
@@ -1780,6 +1812,28 @@ a.footer__credits-name:hover {
     max-height: 90vh;
     object-fit: contain;
     box-shadow: none;
+}
+
+/* 灯箱缩放（gallery.js 双击/捏合/滚轮 + 拖拽平移）：
+   浏览器默认手势全部接管；缩放态光标切换 grab */
+.lightbox {
+    touch-action: none;
+}
+
+#lightbox-img {
+    transform-origin: 50% 50%;
+    cursor: zoom-in;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-user-drag: none;
+}
+
+.lightbox--zoomed #lightbox-img {
+    cursor: grab;
+}
+
+.lightbox--zoomed #lightbox-img:active {
+    cursor: grabbing;
 }
 
 .lightbox__nav {
@@ -2607,4 +2661,142 @@ a.footer__credits-name:hover {
         opacity: 1;
         transform: none;
     }
+}
+
+/* ===================================================================
+   动效引擎接入（2026-09-09 Lenis + GSAP 方案）
+   =================================================================== */
+
+/* Lenis 官方推荐样式：接管滚动时禁用原生 smooth（与 Lenis 插值冲突），
+   触屏设备 Lenis 不平滑滚动，此规则顺带解决触屏 smooth 与惯性滚动打架问题 */
+html.lenis,
+html.lenis body {
+    height: auto;
+}
+.lenis.lenis-smooth {
+    scroll-behavior: auto !important;
+}
+.lenis.lenis-stopped {
+    overflow: hidden;
+}
+
+/* GSAP 接管显现动效（motion.js 加载成功时给 html 加 .motion-gsap）：
+   解除原 IO reveal 对 opacity/transform 的 CSS transition——GSAP 逐帧写
+   inline style，若保留过渡会把每帧拖成惯性跟随；hover 反馈的过渡保留 */
+html.motion-gsap .work-item,
+html.motion-gsap .gallery__item,
+html.motion-gsap .news-item,
+html.motion-gsap .award-item,
+html.motion-gsap .schedule-item,
+html.motion-gsap .album-card {
+    transition-property: background-color, border-color;
+}
+
+html.motion-gsap .section__label,
+html.motion-gsap .section__title {
+    transition: none;
+}
+
+/* hero 入场 CSS 动画停用——改由 GSAP 统一编排（与滚动视差同一 transform
+   通道，避免 CSS animation 的 fill 态覆盖 GSAP inline 值） */
+html.motion-gsap .hero.hero-enter .hero__media img,
+html.motion-gsap .hero.hero-enter .hero__content {
+    animation: none;
+}
+
+/* 移动端性能：导航毛玻璃降级。backdrop-filter 是每帧全屏高斯模糊，
+   低端安卓滚动时掉帧明显；触屏/窄屏换用近不透明底色，视觉差异极小 */
+@media (hover: none), (max-width: 900px) {
+    .nav {
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        background: rgba(249, 248, 246, 0.97);
+    }
+
+    .nav--scrolled {
+        background: rgba(249, 248, 246, 0.98);
+    }
+}
+
+/* ===================================================================
+   hero 叠层覆盖切换（2026-09-09 方案①）
+   hero 钉在视口底层，后续板块带背景从下方滑上盖住——滚动时 hero
+   继续视差下沉，覆盖运动与视差叠加成双重纵深。
+   纯 CSS 实现走合成层，移动端同样生效；板块背景为 --bg 纯色，
+   覆盖时不透出下层 hero
+   =================================================================== */
+.hero,
+.hero-split {
+    position: sticky;
+    top: 0;
+}
+
+#app .hero ~ *,
+#app .hero-split ~ * {
+    position: relative;
+    z-index: 1;
+    background: var(--bg);
+}
+
+/* ===================================================================
+   hero 下滑引导（2026-09-09 方案③）
+   底部居中呼吸细线 + chevron；由 motion.js 注入并绑定点击/淡出
+   =================================================================== */
+.hero__scroll-hint {
+    position: absolute;
+    left: 50%;
+    bottom: 1.75rem;
+    transform: translateX(-50%);
+    z-index: 2;
+    width: 2rem;
+    height: 3rem;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    color: var(--fg-40);
+    transition: color var(--dur-fast) ease;
+}
+
+.hero__scroll-hint:hover {
+    color: var(--fg);
+}
+
+/* 细线：从顶部向下"生长-回缩"的呼吸循环 */
+.hero__scroll-hint span {
+    display: block;
+    width: 1px;
+    height: 2rem;
+    margin: 0 auto;
+    background: currentColor;
+    transform-origin: top center;
+    animation: scrollHintPulse 2.2s var(--ease-standard) infinite;
+}
+
+/* 底部 chevron */
+.hero__scroll-hint::after {
+    content: '';
+    display: block;
+    width: 0.45rem;
+    height: 0.45rem;
+    margin: -1px auto 0;
+    border-right: 1px solid currentColor;
+    border-bottom: 1px solid currentColor;
+    transform: rotate(45deg);
+}
+
+@keyframes scrollHintPulse {
+    0%, 100% { transform: scaleY(0.35); opacity: 0.35; }
+    50%      { transform: scaleY(1); opacity: 1; }
+}
+
+/* ===================================================================
+   图集列表分批渲染哨兵（gallery.js）
+   每批 60 张，哨兵进入预取区即追加下一批；元素本身不可见、不占空间
+   =================================================================== */
+.gallery-list-sentinel {
+    height: 1px;
+    width: 100%;
+    margin-top: -1px;
+    pointer-events: none;
 }

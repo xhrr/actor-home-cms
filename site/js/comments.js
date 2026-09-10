@@ -228,9 +228,13 @@
         const path = (window.location.pathname.replace(/\/+$/, '').split('/').pop() || '').replace(/\.html?$/i, '');
         const grid = document.getElementById('galleryGrid');
         if (path === 'gallery' && album !== null && grid) {
-            const albums = (window.SITE_CONFIG.gallery || {}).albums || [];
-            const hit = albums.find(a => a.id && a.id === album) || (/^\d+$/.test(album) ? albums[+album] : null);
-            if (hit && hit.id) render('album-' + hit.id, grid, 'afterend');
+            // 图集数据已从主 config 拆出（data-gallery.js）：解析相册前先确保数据就绪
+            const ready = (window.CMS && window.CMS.loadGallery) ? window.CMS.loadGallery() : Promise.resolve();
+            ready.then(() => {
+                const albums = (window.SITE_CONFIG.gallery || {}).albums || [];
+                const hit = albums.find(a => a.id && a.id === album) || (/^\d+$/.test(album) ? albums[+album] : null);
+                if (hit && hit.id) render('album-' + hit.id, grid, 'afterend');
+            });
             return;
         }
         const workId = params.get('work');

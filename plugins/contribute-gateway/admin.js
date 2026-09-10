@@ -35,6 +35,7 @@
                 </div>
                 <div class="form-group">
                     <p class="form-help"><strong>上线步骤：</strong>① 保存配置后执行「导出」（Function 随 dist 推送自动部署到 Pages，路径 functions/api/contribute.js）② Cloudflare Pages 后台 → Settings → Functions → <strong>R2 存储桶绑定</strong>：绑定图床桶，变量名必须为 <code>BUCKET</code> ③ 环境变量添加 <code>GITHUB_TOKEN</code>（与 github-issues 共用）④ 打开 /contribute.html 提交一条测试投稿，仓库出现「投稿待审」Issue 即通道打通。</p>
+                    <p class="form-help">投稿页支持三种类型：<strong>图集</strong> / <strong>作品</strong> / <strong>补充</strong>。选「补充」时填目标 ID（详情页链接或 a-xxxx / w-xxxx），审核通过后图片会追加到该内容已有图片末尾——生成 <code>type: append</code> 的 Issue。</p>
                     <p class="form-help">防滥用：同源校验 + 每 IP 10 分钟 5 次 + 待审人工闸（未配置投稿口令）。投稿页：/contribute.html。</p>
                 </div>
             `;

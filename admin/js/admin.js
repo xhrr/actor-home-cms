@@ -332,16 +332,19 @@
         `).join('');
     }
 
-    function renderGallery() {
-        config.gallery = config.gallery || { heading: '写真', albums: [] };
-        if (!Array.isArray(config.gallery.albums)) config.gallery.albums = [];
-        const galleryEnabledInput = $('#gallery-enabled');
-        if (galleryEnabledInput) galleryEnabledInput.checked = findModule('images') ? findModule('images').visible !== false : true;
-        $('#gallery-heading').value = config.gallery.heading || '写真';
-        $('#gallery-albums-list').innerHTML = config.gallery.albums.map((album, ai) => {
-            const src = [album.title, album.author, album.sourceUrl, album.date, (album.images || []).length + '张'].join(' ').toLowerCase();
-            const meta = [album.date, album.author, (album.images || []).length + ' 张'].filter(Boolean).join(' · ');
-            return `
+    /* ---------- 写真集分页渲染 ----------
+     * 图集可达数百个：每个条目含 6 个表单字段，全量渲染会产生上千个输入控件（实测 320 条约 945KB HTML、
+     * 1900+ 字段），后台打开与操作都很卡顿。改为「分页渲染 + 按需加载更多」。
+     * ⚠️ 收集（保存）不能用「遍历已渲染条目」——未渲染的会被丢掉。改为以 config.gallery.albums 为底，
+     *    已渲染条目用 DOM 覆盖，其余保留原值（见 collectGallery）。 */
+    const ALBUM_PAGE = 50;              // 每页条数
+    let galleryPageCount = 1;           // 当前已渲染页数
+    let galleryFilterQuery = '';        // 分区搜索词（用于分页过滤，见 bindListControls）
+
+    function albumItemHtml(album, ai) {
+        const src = [album.title, album.author, album.sourceUrl, album.date, (album.images || []).length + '张'].join(' ').toLowerCase();
+        const meta = [album.date, album.author, (album.images || []).length + ' 张'].filter(Boolean).join(' · ');
+        return `
             <div class="album-item admin-album-item is-collapsed" data-album-index="${ai}" data-search="${window.AdminCMS.esc(src)}">
                 <div class="album-item__head" data-toggle-item>
                     <span class="album-item__name">${window.AdminCMS.esc(album.title || ('写真集 ' + (ai + 1)))}</span>
@@ -386,7 +389,82 @@
                 </div>
             </div>
         `;
-        }).join('') || '<p class="form-help">还没有写真集，点击右上角「新增写真集」开始。</p>';
+    }
+
+    /** 当前需渲染的图集索引（受分区搜索词过滤） */
+    function galleryVisibleIndexes() {
+        const q = galleryFilterQuery.trim().toLowerCase();
+        const all = config.gallery.albums || [];
+        if (!q) return all.map((_, i) => i);
+        return all.map((a, i) => ({ a, i }))
+            .filter(({ a }) => {
+                const src = [a.title, a.author, a.sourceUrl, a.date, (a.images || []).length + '张'].join(' ').toLowerCase();
+                return src.includes(q);
+            })
+            .map(x => x.i);
+    }
+
+    /** 重绘图集列表（数字分页） */
+    function renderGalleryList() {
+        const box = $('#gallery-albums-list');
+        if (!box) return;
+        const albums = config.gallery.albums || [];
+        const idxs = galleryVisibleIndexes();
+        const totalPages = Math.max(1, Math.ceil(idxs.length / ALBUM_PAGE));
+        if (galleryPageCount > totalPages) galleryPageCount = totalPages;
+        if (galleryPageCount < 1) galleryPageCount = 1;
+        const start = (galleryPageCount - 1) * ALBUM_PAGE;
+        const pageIdx = idxs.slice(start, start + ALBUM_PAGE);
+        const html = pageIdx.map(i => albumItemHtml(albums[i], i)).join('');
+        const pager = idxs.length > ALBUM_PAGE ? paginationHtml(galleryPageCount, totalPages) : '';
+        box.innerHTML = (html || '<p class="form-help">' + (galleryFilterQuery ? '没有匹配的写真集。' : '还没有写真集，点击右上角「新增写真集」开始。') + '</p>') + pager;
+        bindPager(box, pg => { galleryPageCount = pg; renderGalleryList(); box.scrollIntoView({ block: 'nearest' }); });
+        // 更新分区搜索计数
+        const countEl = document.querySelector('[data-filter-for="gallery"]')?.parentElement.querySelector('.section-filter__count');
+        if (countEl) countEl.textContent = albums.length ? (idxs.length + ' / ' + albums.length + ' 条') : '';
+    }
+
+    /** 数字分页条 HTML（Previous / 1 2 3 … / Next，首尾与当前页附近保留，其余折叠为 …） */
+    function paginationHtml(current, total) {
+        if (total <= 1) return '';
+        const pages = [];
+        const push = v => { if (!pages.includes(v)) pages.push(v); };
+        push(1);
+        for (let i = current - 1; i <= current + 1; i++) if (i > 1 && i < total) push(i);
+        push(total);
+        const items = [];
+        for (let k = 0; k < pages.length; k++) {
+            if (k > 0 && pages[k] - pages[k - 1] > 1) items.push('<span class="pager__gap">…</span>');
+            const pg = pages[k];
+            items.push(`<button type="button" class="pager__num${pg === current ? ' is-active' : ''}" data-page="${pg}"${pg === current ? ' aria-current="page"' : ''}>${pg}</button>`);
+        }
+        return `<nav class="pager" aria-label="分页">
+            <button type="button" class="pager__nav" data-page="${current - 1}"${current <= 1 ? ' disabled' : ''}>‹ Previous</button>
+            ${items.join('')}
+            <button type="button" class="pager__nav" data-page="${current + 1}"${current >= total ? ' disabled' : ''}>Next ›</button>
+        </nav>`;
+    }
+
+    /** 绑定分页按钮（事件委托，重绘后依然有效） */
+    function bindPager(container, go) {
+        const nav = container.querySelector('.pager');
+        if (!nav) return;
+        nav.addEventListener('click', e => {
+            const btn = e.target.closest('[data-page]');
+            if (!btn || btn.disabled) return;
+            const pg = parseInt(btn.dataset.page, 10);
+            if (Number.isInteger(pg) && pg >= 1) go(pg);
+        });
+    }
+
+    function renderGallery() {
+        config.gallery = config.gallery || { heading: '写真', albums: [] };
+        if (!Array.isArray(config.gallery.albums)) config.gallery.albums = [];
+        const galleryEnabledInput = $('#gallery-enabled');
+        if (galleryEnabledInput) galleryEnabledInput.checked = findModule('images') ? findModule('images').visible !== false : true;
+        $('#gallery-heading').value = config.gallery.heading || '写真';
+        galleryPageCount = 1;
+        renderGalleryList();
     }
 
     function renderNews() {
@@ -1018,19 +1096,24 @@
         config.gallery.heading = $('#gallery-heading').value;
         const galleryEnabledInput = $('#gallery-enabled');
         if (galleryEnabledInput) setModuleVisible('images', galleryEnabledInput.checked);
-        const albums = [];
+
+        // ⚠️ 分页渲染：只渲染了前 N 页，不能「遍历 DOM 重建数组」——否则未渲染的会被丢弃。
+        // 以现有 config.gallery.albums 为底（长度即真相），已渲染的条目用 DOM 值覆盖。
+        const base = config.gallery.albums || [];
+        const albums = base.slice();
         document.querySelectorAll('#gallery-albums-list .album-item').forEach(item => {
-            const ai = item.dataset.albumIndex;
+            const ai = parseInt(item.dataset.albumIndex, 10);
+            if (!Number.isInteger(ai) || ai < 0 || ai >= albums.length) return;   // 防御：新增/删除错位时跳过越界项
             const images = item.querySelector(`[data-album-images="${ai}"]`).value.split('\n').map(s => s.trim()).filter(Boolean);
-            albums.push({
-                id: (config.gallery.albums[ai] || {}).id,
+            albums[ai] = {
+                id: (base[ai] || {}).id,
                 title: item.querySelector(`[data-album-title="${ai}"]`).value,
                 date: item.querySelector(`[data-album-date="${ai}"]`).value,
                 cover: item.querySelector(`[data-album-cover="${ai}"]`).value || images[0] || '',
                 author: item.querySelector(`[data-album-author="${ai}"]`).value,
                 sourceUrl: item.querySelector(`[data-album-source="${ai}"]`).value,
                 images
-            });
+            };
         });
         config.gallery.albums = albums;
     }
@@ -1664,9 +1747,15 @@
                 const q = input.value.trim().toLowerCase();
                 const section = input.dataset.filterFor;
                 const countEl = input.parentElement.querySelector('.section-filter__count');
+                // 写真集是分页渲染的：过滤需重绘列表（未渲染条目无法靠 display 控制）
+                if (section === 'gallery') {
+                    galleryFilterQuery = input.value.trim();
+                    galleryPageCount = 1;
+                    renderGalleryList();
+                    return;
+                }
                 const rows = [];
                 if (section === 'works') rows.push(...document.querySelectorAll('#work-category-panel .admin-work-item'));
-                else if (section === 'gallery') rows.push(...document.querySelectorAll('#gallery-albums-list .admin-album-item'));
                 else if (section === 'news') rows.push(...document.querySelectorAll('#news-list .admin-content-item'));
                 else if (section === 'awards') rows.push(...document.querySelectorAll('#awards-list .admin-content-item'));
                 else if (section === 'schedule') {
@@ -2071,7 +2160,12 @@
             config.gallery = config.gallery || { heading: '写真', albums: [] };
             if (!Array.isArray(config.gallery.albums)) config.gallery.albums = [];
             config.gallery.albums.push({ title: '新写真集', cover: '', images: [] });
-            renderGallery();
+            // 新增项在数组末尾：清空搜索、翻到最后一页，否则分页下看不到它
+            galleryFilterQuery = '';
+            const qInput = document.querySelector('[data-filter-for="gallery"]');
+            if (qInput) qInput.value = '';
+            galleryPageCount = Math.ceil(config.gallery.albums.length / ALBUM_PAGE) || 1;
+            renderGalleryList();
             expandNewest('#gallery-albums-list .admin-album-item');
         });
         $('#gallery-albums-list').addEventListener('click', e => {
@@ -2079,7 +2173,13 @@
             if (!btn) return;
             const ai = parseInt(btn.dataset.removeAlbum);
             config.gallery.albums.splice(ai, 1);
-            renderGallery();
+            // 删除后部分索引变化：重置搜索并回到第 1 页，避免索引错位造成误解
+            galleryFilterQuery = '';
+            const qInput = document.querySelector('[data-filter-for="gallery"]');
+            if (qInput) qInput.value = '';
+            galleryPageCount = 1;
+            renderGalleryList();
+            showToast('已删除写真集（保存后生效）');
         });
 
         // 启用开关切换：立即写入配置 + 同步另一处勾选 + 更新状态提示（未保存也可见）

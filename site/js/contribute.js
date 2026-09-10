@@ -24,14 +24,26 @@
 
     function setType(type) {
         currentType = type;
-        document.querySelector('[data-type="album"]').classList.toggle('active', type === 'album');
-        document.querySelector('[data-type="works"]').classList.toggle('active', type === 'works');
+        document.querySelectorAll('.contrib-type__btn').forEach(b => {
+            b.classList.toggle('active', b.dataset.type === type);
+        });
         $('fieldsAlbum').style.display = type === 'album' ? '' : 'none';
         $('fieldsWorks').style.display = type === 'works' ? '' : 'none';
-        $('imgLabel').textContent = type === 'album'
-            ? '图片 *（最多 30 张，自动压缩为 webp）'
-            : '剧照 *（最多 30 张，第一张作为海报，自动压缩为 webp）';
-        renderThumbs(); // 角标文案随类型切换（封面 ↔ 海报）
+        $('fieldsAppend').style.display = type === 'append' ? '' : 'none';
+        const isAppend = type === 'append';
+        // 补充模式：标题不可修改——整块隐藏，也不随请求提交（只追加图片）
+        $('fieldTitle').style.display = isAppend ? 'none' : '';
+        $('f-title-label').textContent = '标题 *';
+        $('f-title').placeholder = '必填';
+        // 补充模式下原始链接为选填（仅在填写时作为补丁，留空不改）
+        $('f-sourceUrl-label').textContent = isAppend ? '原始链接（选填）' : '原始链接 *';
+        $('f-sourceUrl').placeholder = isAppend ? '选填' : 'https://…（必填）';
+        $('imgLabel').textContent = isAppend
+            ? '要补充的图片 *（最多 30 张，自动压缩为 webp）'
+            : type === 'album'
+                ? '图片 *（最多 30 张，自动压缩为 webp）'
+                : '剧照 *（最多 30 张，第一张作为海报，自动压缩为 webp）';
+        renderThumbs(); // 角标文案随类型切换（封面 ↔ 海报；补充模式不标角标）
     }
 
     /* ---------- 图片压缩与预览 ---------- */
@@ -63,10 +75,11 @@
 
     function renderThumbs() {
         const box = $('contribThumbs');
+        const taggable = currentType !== 'append'; // 补充模式不涉及封面/海报
         box.innerHTML = pendingFiles.map((it, i) => `
             <div class="contrib-thumb">
                 <img src="${URL.createObjectURL(it.blob)}" alt="${esc(it.name)}">
-                ${i === 0 ? `<span class="contrib-thumb__tag">${coverTag()}</span>` : ''}
+                ${taggable && i === 0 ? `<span class="contrib-thumb__tag">${coverTag()}</span>` : ''}
                 <button type="button" class="contrib-thumb__del" data-del="${i}" aria-label="移除">×</button>
             </div>
         `).join('');
@@ -74,6 +87,7 @@
 
     /** 点击缩略图设为封面/海报：把该图移到首位（保持「第一张=封面」不变量，增删图不错位） */
     function setCover(index) {
+        if (currentType === 'append') return; // 补充模式无封面概念
         if (!Number.isInteger(index) || index <= 0 || index >= pendingFiles.length) return;
         pendingFiles.unshift(pendingFiles.splice(index, 1)[0]);
         renderThumbs();
@@ -158,11 +172,13 @@
         const fd = new FormData();
         fd.append('type', currentType);
         const val = id => $(id).value.trim();
-        fd.append('title', val('f-title'));
+        if (currentType !== 'append') fd.append('title', val('f-title'));
         fd.append('sourceUrl', val('f-sourceUrl'));
         if (currentType === 'album') {
             fd.append('date', val('f-date'));
             fd.append('author', val('f-author'));
+        } else if (currentType === 'append') {
+            fd.append('targetId', val('f-targetId'));
         } else {
             fd.append('category', val('f-category'));
             fd.append('year', val('f-year'));
@@ -191,12 +207,17 @@
     }
 
     async function submitForm() {
-        const title = $('f-title').value.trim();
-        if (!title) { showMsg('请填写标题', true); return; }
+        if (currentType === 'append') {
+            const tid = $('f-targetId').value.trim();
+            if (!tid) { showMsg('请填写要补充的内容 ID（详情页链接或 a-xxxx / w-xxxx）', true); return; }
+        } else {
+            const title = $('f-title').value.trim();
+            if (!title) { showMsg('请填写标题', true); return; }
+        }
         if (currentType === 'album' && !$('f-date').value) { showMsg('请选择发帖日期', true); return; }
         if (currentType === 'album' && !$('f-author').value.trim()) { showMsg('请填写作者 / 摄影师', true); return; }
         const sourceUrl = $('f-sourceUrl').value.trim();
-        if (!/^https?:\/\//i.test(sourceUrl)) { showMsg('请填写原始链接（http/https 开头）', true); return; }
+        if (currentType !== 'append' && !/^https?:\/\//i.test(sourceUrl)) { showMsg('请填写原始链接（http/https 开头）', true); return; }
         if (currentType === 'works') {
             if (!$('f-category').value) { showMsg('请选择分类', true); return; }
             if (!$('f-year').value.trim()) { showMsg('请填写年份', true); return; }
