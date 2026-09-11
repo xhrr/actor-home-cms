@@ -7,6 +7,9 @@
 (function () {
     'use strict';
 
+    // 运行时国际化（i18n.js 同步加载在前），缺失时回退中文默认值
+    const T = (window.I18N && window.I18N.t) || ((key, fallback) => (fallback == null ? key : fallback));
+
     const ENDPOINT = '/api/contribute';
     const MAX_IMAGES = 30;
     const MAX_EDGE = 2000;
@@ -33,16 +36,16 @@
         const isAppend = type === 'append';
         // 补充模式：标题不可修改——整块隐藏，也不随请求提交（只追加图片）
         $('fieldTitle').style.display = isAppend ? 'none' : '';
-        $('f-title-label').textContent = '标题 *';
-        $('f-title').placeholder = '必填';
+        $('f-title-label').textContent = T('contrib.titleLabel', '标题 *');
+        $('f-title').placeholder = T('contrib.required', '必填');
         // 补充模式下原始链接为选填（仅在填写时作为补丁，留空不改）
-        $('f-sourceUrl-label').textContent = isAppend ? '原始链接（选填）' : '原始链接 *';
-        $('f-sourceUrl').placeholder = isAppend ? '选填' : 'https://…（必填）';
+        $('f-sourceUrl-label').textContent = isAppend ? T('contrib.sourceOptional', '原始链接（选填）') : T('contrib.sourceRequired', '原始链接 *');
+        $('f-sourceUrl').placeholder = isAppend ? T('contrib.optional', '选填') : 'https://…';
         $('imgLabel').textContent = isAppend
-            ? '要补充的图片 *（最多 30 张，自动压缩为 webp）'
+            ? T('contrib.imgAppend', '要补充的图片 *（最多 30 张，自动压缩为 webp）')
             : type === 'album'
-                ? '图片 *（最多 30 张，自动压缩为 webp）'
-                : '剧照 *（最多 30 张，第一张作为海报，自动压缩为 webp）';
+                ? T('contrib.imgAlbum', '图片 *（最多 30 张，自动压缩为 webp）')
+                : T('contrib.imgWorks', '剧照 *（最多 30 张，第一张作为海报，自动压缩为 webp）');
         renderThumbs(); // 角标文案随类型切换（封面 ↔ 海报；补充模式不标角标）
     }
 
@@ -54,7 +57,7 @@
         try {
             bitmap = await createImageBitmap(file);
         } catch (e) {
-            throw new Error('无法读取图片：' + file.name);
+            throw new Error(T('contrib.readFail', '无法读取图片：') + file.name);
         }
         const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
         const w = Math.max(1, Math.round(bitmap.width * scale));
@@ -68,10 +71,10 @@
             const blob = await new Promise(resolve => canvas.toBlob(resolve, type, quality));
             if (blob && blob.type === type) return { blob, ext, name: file.name };
         }
-        throw new Error('图片编码失败：' + file.name);
+        throw new Error(T('contrib.encodeFail', '图片编码失败：') + file.name);
     }
 
-    const coverTag = () => (currentType === 'works' ? '海报' : '封面');
+    const coverTag = () => (currentType === 'works' ? T('contrib.poster', '海报') : T('contrib.cover', '封面'));
 
     function renderThumbs() {
         const box = $('contribThumbs');
@@ -80,7 +83,7 @@
             <div class="contrib-thumb">
                 <img src="${URL.createObjectURL(it.blob)}" alt="${esc(it.name)}">
                 ${taggable && i === 0 ? `<span class="contrib-thumb__tag">${coverTag()}</span>` : ''}
-                <button type="button" class="contrib-thumb__del" data-del="${i}" aria-label="移除">×</button>
+                <button type="button" class="contrib-thumb__del" data-del="${i}" aria-label="${esc(T('contrib.remove', '移除'))}">×</button>
             </div>
         `).join('');
     }
@@ -97,7 +100,7 @@
         const files = [...fileList].filter(f => /^image\//.test(f.type));
         for (const f of files) {
             if (pendingFiles.length >= MAX_IMAGES) {
-                showMsg(`最多 ${MAX_IMAGES} 张`, true);
+                showMsg(T('contrib.maxImages', `最多 ${MAX_IMAGES} 张`, { n: MAX_IMAGES }), true);
                 break;
             }
             try {
@@ -157,7 +160,7 @@
     function setBusy(busy, percent) {
         const btn = $('contribSubmit');
         btn.disabled = busy;
-        btn.textContent = busy ? `上传中 ${percent || 0}%` : '提 交 投 稿';
+        btn.textContent = busy ? T('contrib.uploading', `上传中 ${percent || 0}%`, { n: percent || 0 }) : T('contrib.submit', '提 交 投 稿');
         $('contribBar').style.display = busy ? 'block' : 'none';
         if (busy) $('contribBarFill').style.width = (percent || 0) + '%';
     }
@@ -209,29 +212,29 @@
     async function submitForm() {
         if (currentType === 'append') {
             const tid = $('f-targetId').value.trim();
-            if (!tid) { showMsg('请填写要补充的内容 ID（详情页链接或 a-xxxx / w-xxxx）', true); return; }
+            if (!tid) { showMsg(T('contrib.needTargetId', '请填写要补充的内容 ID（详情页链接或 a-xxxx / w-xxxx）'), true); return; }
         } else {
             const title = $('f-title').value.trim();
-            if (!title) { showMsg('请填写标题', true); return; }
+            if (!title) { showMsg(T('contrib.needTitle', '请填写标题'), true); return; }
         }
-        if (currentType === 'album' && !$('f-date').value) { showMsg('请选择发帖日期', true); return; }
-        if (currentType === 'album' && !$('f-author').value.trim()) { showMsg('请填写作者 / 摄影师', true); return; }
+        if (currentType === 'album' && !$('f-date').value) { showMsg(T('contrib.needDate', '请选择发帖日期'), true); return; }
+        if (currentType === 'album' && !$('f-author').value.trim()) { showMsg(T('contrib.needAuthor', '请填写作者 / 摄影师'), true); return; }
         const sourceUrl = $('f-sourceUrl').value.trim();
-        if (currentType !== 'append' && !/^https?:\/\//i.test(sourceUrl)) { showMsg('请填写原始链接（http/https 开头）', true); return; }
+        if (currentType !== 'append' && !/^https?:\/\//i.test(sourceUrl)) { showMsg(T('contrib.needSource', '请填写原始链接（http/https 开头）'), true); return; }
         if (currentType === 'works') {
-            if (!$('f-category').value) { showMsg('请选择分类', true); return; }
-            if (!$('f-year').value.trim()) { showMsg('请填写年份', true); return; }
-            if (!$('f-role').value.trim()) { showMsg('请填写饰演角色', true); return; }
-            if (!$('f-synopsis').value.trim()) { showMsg('请填写简介', true); return; }
+            if (!$('f-category').value) { showMsg(T('contrib.needCategory', '请选择分类'), true); return; }
+            if (!$('f-year').value.trim()) { showMsg(T('contrib.needYear', '请填写年份'), true); return; }
+            if (!$('f-role').value.trim()) { showMsg(T('contrib.needRole', '请填写饰演角色'), true); return; }
+            if (!$('f-synopsis').value.trim()) { showMsg(T('contrib.needSynopsis', '请填写简介'), true); return; }
         }
-        if (!pendingFiles.length) { showMsg('请至少选择一张图片', true); return; }
+        if (!pendingFiles.length) { showMsg(T('contrib.needImage', '请至少选择一张图片'), true); return; }
 
         setBusy(true, 0);
         const last = await sendForm(buildFormData());
         setBusy(false);
 
         if (last.status >= 200 && last.status < 300 && last.body.success) {
-            showMsg(`✅ ${last.body.message || '投稿已提交，审核通过后上线'}（Issue #${last.body.issueNumber}）`, false);
+            showMsg(`✅ ${last.body.message || T('contrib.submitted', '投稿已提交，审核通过后上线')}（Issue #${last.body.issueNumber}）`, false);
             pendingFiles = [];
             renderThumbs();
             $('contribForm').reset();
@@ -239,14 +242,15 @@
         }
         // 失败原因分级提示：服务端给的文案优先，其次按状态归类
         const reason = last.body.error
-            || (last.status === 0 ? '网络错误或超时，请检查网络后重试' : `投稿服务暂时不可用（${last.status}），请稍后再试`);
-        showMsg('❌ 上传失败：' + reason, true);
+            || (last.status === 0 ? T('contrib.networkError', '网络错误或超时，请检查网络后重试') : T('contrib.serviceDown', `投稿服务暂时不可用（${last.status}），请稍后再试`, { n: last.status }));
+        showMsg(T('contrib.uploadFail', '❌ 上传失败：') + reason, true);
     }
 
     /* ---------- 初始化 ---------- */
 
     function init() {
         if (window.CMS && typeof window.CMS.initNavShell === 'function') window.CMS.initNavShell();
+        setType(currentType); // 初始化类型相关文案与占位符（走词典）
 
         $('contribType').addEventListener('click', e => {
             const btn = e.target.closest('[data-type]');

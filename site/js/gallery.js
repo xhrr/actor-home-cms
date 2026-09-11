@@ -5,6 +5,9 @@
     const U = window.CMS.utils;
     const esc = U.esc;
     const safeUrl = U.safeUrl;
+    // 运行时国际化（i18n.js 同步加载在前），缺失时回退中文默认值
+    const T = (window.I18N && window.I18N.t) || ((key, fallback) => (fallback == null ? key : fallback));
+    const pick = (window.I18N && window.I18N.pick) || ((obj, field) => (obj && obj[field] != null ? obj[field] : ''));
 
     const top = document.getElementById('galleryTop');
     const grid = document.getElementById('galleryGrid');
@@ -18,12 +21,12 @@
     const workIndex = workRef !== null && /^\d+$/.test(workRef) ? parseInt(workRef, 10) : null;
 
     // 图集数据已从主 config 拆出（data-gallery.js）；下方入口会在懒加载完成后再赋值。
-    let gallery = C.gallery || { heading: '写真', albums: [] };
+    let gallery = C.gallery || { heading: T('gallery.title', '写真'), albums: [] };
     let albums = Array.isArray(gallery.albums) ? gallery.albums : [];
 
     /** 从 SITE_CONFIG 重新读取图集数据（懒加载完成后调用） */
     function refreshGalleryData() {
-        gallery = C.gallery || { heading: '写真', albums: [] };
+        gallery = C.gallery || { heading: T('gallery.title', '写真'), albums: [] };
         albums = Array.isArray(gallery.albums) ? gallery.albums : [];
     }
 
@@ -36,7 +39,7 @@
     const works = C.works || {};
     const categories = Array.isArray(works.categories) && works.categories.length
         ? works.categories
-        : (works.items || []).length ? [{ name: '代表作品', items: works.items }] : [];
+        : (works.items || []).length ? [{ name: T('works.title', '代表作品'), items: works.items }] : [];
 
     /* ---------- 通用导航 ---------- */
 
@@ -325,7 +328,7 @@
         btn.addEventListener('click', () => {
             window.CMS.copyToClipboard(window.location.href).then(ok => {
                 const original = btn.innerHTML;
-                btn.innerHTML = ok ? '已复制 ✓' : '复制失败';
+                btn.innerHTML = ok ? T('common.copied', '已复制 ✓') : T('common.copyFailed', '复制失败');
                 setTimeout(() => { btn.innerHTML = original; }, 1800);
             });
         });
@@ -379,12 +382,12 @@
         return `
             <a class="album-card" href="/gallery.html?album=${album.id || ai}">
                 <div class="album-card__cover">
-                    <img src="${cover}" alt="${esc(album.title || '写真集')}" loading="lazy" onerror="this.parentElement.classList.add('is-empty')">
+                    <img src="${cover}" alt="${esc(pick(album, 'title') || T('gallery.albumFallback', '写真集'))}" loading="lazy" onerror="this.parentElement.classList.add('is-empty')">
                 </div>
                 <div class="album-card__body">
-                    <h2 class="album-card__title">${esc(album.title || ('写真集 ' + (ai + 1)))}</h2>
-                    ${album.author ? `<span class="album-card__author">作者：${esc(album.author)}</span>` : ''}
-                    <span class="album-card__count">${[(album.images || []).length + ' 张', dateTxt].filter(Boolean).join(' · ')}</span>
+                    <h2 class="album-card__title">${esc(pick(album, 'title') || (T('gallery.albumFallback', '写真集') + ' ' + (ai + 1)))}</h2>
+                    ${album.author ? `<span class="album-card__author">${esc(T('gallery.authorPrefix', '作者：'))}${esc(album.author)}</span>` : ''}
+                    <span class="album-card__count">${[(album.images || []).length + T('unit.photo', ' 张'), dateTxt].filter(Boolean).join(' · ')}</span>
                 </div>
             </a>`;
     }
@@ -450,20 +453,20 @@
         shown = sortAlbumEntries(shown);
 
         const countEl = document.getElementById('gallery-search-count');
-        if (countEl) countEl.textContent = (q || galleryYearFilter || galleryMonthFilter) ? (shown.length + ' / ' + albums.length + ' 个写真集') : '';
+        if (countEl) countEl.textContent = (q || galleryYearFilter || galleryMonthFilter) ? (shown.length + ' / ' + albums.length + T('gallery.countUnit', ' 个写真集')) : '';
 
         teardownListScroll();   // 重绘前清掉上一轮的分页哨兵与观察器
 
         if (q && !shown.length) {
-            grid.innerHTML = '<p class="gallery-page__empty">未找到匹配的写真集</p>';
+            grid.innerHTML = `<p class="gallery-page__empty">${esc(T('gallery.emptySearch', '未找到匹配的写真集'))}</p>`;
             return;
         }
         if ((galleryYearFilter || galleryMonthFilter) && !shown.length) {
-            grid.innerHTML = '<p class="gallery-page__empty">这个时间段还没有写真集</p>';
+            grid.innerHTML = `<p class="gallery-page__empty">${esc(T('gallery.emptyTime', '这个时间段还没有写真集'))}</p>`;
             return;
         }
         if (!albums.length) {
-            grid.innerHTML = '<p class="gallery-page__empty">暂无写真集</p>';
+            grid.innerHTML = `<p class="gallery-page__empty">${esc(T('gallery.emptyDefault', '暂无写真集'))}</p>`;
             return;
         }
 
@@ -482,8 +485,8 @@
         const attr = rowCls ? 'data-month' : 'data-year';
         return `
             <div class="gallery-filter__row${rowCls ? ' ' + rowCls : ''}">
-                <button type="button" class="gallery-filter__link${active === '' ? ' active' : ''}" ${attr}="">全部</button>
-                ${items.map(v => `<button type="button" class="gallery-filter__link${active === v ? ' active' : ''}" ${attr}="${v}">${rowCls ? parseInt(v, 10) + '月' : v}</button>`).join('')}
+                <button type="button" class="gallery-filter__link${active === '' ? ' active' : ''}" ${attr}="">${esc(T('common.all', '全部'))}</button>
+                ${items.map(v => `<button type="button" class="gallery-filter__link${active === v ? ' active' : ''}" ${attr}="${v}">${rowCls ? parseInt(v, 10) + T('unit.monthSuffix', '月') : v}</button>`).join('')}
             </div>`;
     }
 
@@ -502,10 +505,10 @@
         if (top) {
             top.innerHTML = `
                 <p class="gallery-page__eyebrow">GALLERY</p>
-                <h1 class="gallery-page__title">${esc(gallery.heading || '写真')}</h1>
-                <p class="gallery-page__desc">共 ${albums.length} 个写真集</p>
+                <h1 class="gallery-page__title">${esc(pick(gallery, 'heading') || T('gallery.title', '写真'))}</h1>
+                <p class="gallery-page__desc">${esc(T('gallery.count', '共 {n} 个写真集', { n: albums.length }))}</p>
                 <div class="page-search">
-                    <input type="search" id="gallery-search-input" placeholder="搜索写真集标题 / 作者…" autocomplete="off">
+                    <input type="search" id="gallery-search-input" placeholder="${esc(T('gallery.searchPlaceholder', '搜索写真集标题 / 作者…'))}" autocomplete="off">
                     <span class="page-search__count" id="gallery-search-count"></span>
                 </div>
                 <div class="gallery-filter" id="gallery-filter"></div>
@@ -684,17 +687,17 @@
         if (top) {
             top.innerHTML = `
                 <div class="album-detail__head">
-                    <a class="hover-underline" href="/gallery.html">← 返回写真集</a>
-                    <h1 class="album-detail__title">${esc(album.title || ('写真集 ' + (ai + 1)))}</h1>
-                    <span class="album-detail__count">${[(images.length + ' 张'), fmtAlbumDate(album.date)].filter(Boolean).join(' · ')}</span>
-                    <button type="button" class="album-detail__share" id="albumShare" aria-label="复制链接" title="复制链接">
+                    <a class="hover-underline" href="/gallery.html">${esc(T('gallery.back', '← 返回写真集'))}</a>
+                    <h1 class="album-detail__title">${esc(pick(album, 'title') || (T('gallery.albumFallback', '写真集') + ' ' + (ai + 1)))}</h1>
+                    <span class="album-detail__count">${[(images.length + T('unit.photo', ' 张')), fmtAlbumDate(album.date)].filter(Boolean).join(' · ')}</span>
+                    <button type="button" class="album-detail__share" id="albumShare" aria-label="${esc(T('common.copyLink', '复制链接'))}" title="${esc(T('common.copyLink', '复制链接'))}">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.4 13.3l7.2 4.2M15.6 6.5L8.4 10.7"/></svg>
                     </button>
                 </div>
                 ${(album.author || source) ? `
                     <div class="album-detail__meta">
-                        ${album.author ? `<span class="album-detail__author">作者：${esc(album.author)}</span>` : ''}
-                        ${source ? `<a class="album-detail__source" href="${source}" target="_blank" rel="noopener">查看原始链接 ↗</a>` : ''}
+                        ${album.author ? `<span class="album-detail__author">${esc(T('gallery.authorPrefix', '作者：'))}${esc(album.author)}</span>` : ''}
+                        ${source ? `<a class="album-detail__source" href="${source}" target="_blank" rel="noopener">${esc(T('common.viewOriginal', '查看原始链接 ↗'))}</a>` : ''}
                     </div>
                 ` : ''}
             `;
@@ -702,13 +705,13 @@
         bindShareButton(document.getElementById('albumShare'));
 
         if (!images.length) {
-            grid.innerHTML = '<p class="gallery-page__empty">这个写真集还没有照片</p>';
+            grid.innerHTML = `<p class="gallery-page__empty">${esc(T('gallery.emptyAlbum', '这个写真集还没有照片'))}</p>`;
             curImages = [];
             return;
         }
 
         curImages = images.filter(Boolean);
-        renderMasonry(images.map((url, i) => ({ url, alt: `写真 ${i + 1}` })));
+        renderMasonry(images.map((url, i) => ({ url, alt: T('gallery.altPhoto', '写真 {n}', { n: i + 1 }) })));
         if (window.Comments && album.id) window.Comments.render('album-' + album.id, grid, 'afterend');
     }
 
@@ -740,10 +743,10 @@
         if (top) {
             top.innerHTML = `
                 <div class="album-detail__head">
-                    <a class="hover-underline" href="/works.html">← 返回作品</a>
-                    <h1 class="album-detail__title">${esc(work ? work.title : '作品图集')}</h1>
-                    <span class="album-detail__count">${images.length} 张</span>
-                    <button type="button" class="album-detail__share" id="workShare" aria-label="复制链接" title="复制链接">
+                    <a class="hover-underline" href="/works.html">${esc(T('workGallery.back', '← 返回作品'))}</a>
+                    <h1 class="album-detail__title">${esc(work ? pick(work, 'title') : T('workGallery.fallback', '作品图集'))}</h1>
+                    <span class="album-detail__count">${images.length}${esc(T('unit.photo', ' 张'))}</span>
+                    <button type="button" class="album-detail__share" id="workShare" aria-label="${esc(T('common.copyLink', '复制链接'))}" title="${esc(T('common.copyLink', '复制链接'))}">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.4 13.3l7.2 4.2M15.6 6.5L8.4 10.7"/></svg>
                     </button>
                 </div>
@@ -752,9 +755,9 @@
                         <p class="work-detail__meta">
                             ${esc(metaParts.join(' · '))}
                         </p>
-                        <p class="work-detail__role">饰演 ${esc(work.role || '')}</p>
+                        <p class="work-detail__role">${esc(T('works.rolePrefix', '饰演 '))}${esc(work.role || '')}</p>
                         <p class="work-detail__synopsis">${esc(work.synopsis || '')}</p>
-                        ${source ? `<p class="work-detail__source"><a class="album-detail__source" href="${source}" target="_blank" rel="noopener">查看原始链接 ↗</a></p>` : ''}
+                        ${source ? `<p class="work-detail__source"><a class="album-detail__source" href="${source}" target="_blank" rel="noopener">${esc(T('common.viewOriginal', '查看原始链接 ↗'))}</a></p>` : ''}
                     </div>
                 ` : ''}
             `;
@@ -762,13 +765,13 @@
         bindShareButton(document.getElementById('workShare'));
 
         if (!images.length) {
-            grid.innerHTML = '<p class="gallery-page__empty">这个作品还没有剧照</p>';
+            grid.innerHTML = `<p class="gallery-page__empty">${esc(T('workGallery.empty', '这个作品还没有剧照'))}</p>`;
             curImages = [];
             return;
         }
 
         curImages = images.filter(Boolean);
-        renderMasonry(images.map((url, i) => ({ url, alt: `剧照 ${i + 1}` })));
+        renderMasonry(images.map((url, i) => ({ url, alt: T('workGallery.altStill', '剧照 {n}', { n: i + 1 }) })));
         if (window.Comments && work && work.id) window.Comments.render('work-' + work.id, grid, 'afterend');
     }
 

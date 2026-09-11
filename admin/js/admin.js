@@ -79,6 +79,7 @@
         renderAbout();
         renderSocial();
         renderFooter();
+        renderFanGroups();
         renderModules();
         renderPlugins();
         renderMedia();
@@ -629,9 +630,16 @@
         }
     }
 
+    /** 模块类型 → 管理界面显示名（仅用于展示，不动存储值） */
+    const MODULE_TYPE_LABELS = {
+        fanGroups: '粉丝群组',
+        'hero-split': '竖切 Hero',
+        images: '写真/图集'
+    };
+
     function renderModules() {
         const modules = config.modules || [];
-        const listTypes = ['works', 'news', 'awards', 'schedule', 'images'];
+        const listTypes = ['works', 'news', 'awards', 'schedule', 'images', 'fanGroups'];
         $('#modules-list').innerHTML = modules.map((mod, i) => {
             const type = mod.type || '';
             const extras = [];
@@ -711,9 +719,9 @@
                 `);
             }
             return `
-                <div class="module-row" data-module-index="${i}">
+                <div class="module-row" data-module-index="${i}" data-module-type="${window.AdminCMS.esc(type)}">
                     <div class="module-row__main">
-                        <span class="module-row__type">${window.AdminCMS.esc(type)}</span>
+                        <span class="module-row__type">${window.AdminCMS.esc(MODULE_TYPE_LABELS[type] || type)}</span>
                         <label>
                             <input type="checkbox" data-module-visible="${i}" ${mod.visible === false ? '' : 'checked'}> 显示
                         </label>
@@ -815,6 +823,7 @@
         schedule: { plugin: 'actor-schedule', modules: true, collect: collectSchedule },
         about:    { sections: ['about'], modules: true, collect: collectAbout },
         social:   { sections: ['social'], collect: collectSocial },
+        fanGroups: { sections: ['fanGroups'], modules: true, collect: collectFanGroups },
         footer:   { sections: ['footer'], modules: true, collect: collectFooter },
         modules:  { modules: true, collect: collectModules },
         // 插件面板：每个面板数据走各自独立端点（plugins.data[name]），互不影响
@@ -963,6 +972,7 @@
         const focusCat = focused && focused.dataset ? focused.dataset.catName : null;
         renderWorks();
         renderGallery();
+        reapplySectionFilters();   // 列表被重建 → 重新应用过滤，避免搜索状态被"冲掉"
         if (focusCat) {
             const again = document.querySelector(`[data-cat-name="${focusCat}"]`);
             if (again && again.focus) again.focus();
@@ -1116,6 +1126,55 @@
             };
         });
         config.gallery.albums = albums;
+    }
+
+    /* ---------- 粉丝群组（独立页面 /groups.html） ---------- */
+    function renderFanGroups() {
+        const fg = config.fanGroups || { heading: '粉丝群组', desc: '', groups: [] };
+        const visInput = $('#fanGroups-visible');
+        if (visInput) visInput.checked = findModule('fanGroups') ? findModule('fanGroups').visible !== false : true;
+        const h = $('#fanGroups-heading'); if (h) h.value = fg.heading || '';
+        const d = $('#fanGroups-desc'); if (d) d.value = fg.desc || '';
+        const box = $('#fan-groups-list');
+        if (!box) return;
+        const groups = Array.isArray(fg.groups) ? fg.groups : [];
+        box.innerHTML = groups.map((g, i) => `
+            <div class="list-item fan-group-item" data-index="${i}">
+                <input type="text" data-fan-name="${i}" value="${window.AdminCMS.esc((g && g.name) || '')}" placeholder="名称（如：官方后援会）">
+                <input type="text" data-fan-platform="${i}" value="${window.AdminCMS.esc((g && g.platform) || '')}" placeholder="平台（QQ/微信/微博）">
+                <input type="text" data-fan-country="${i}" value="${window.AdminCMS.esc((g && g.country) || '')}" placeholder="国家（如：中国）">
+                <input type="text" data-fan-region="${i}" value="${window.AdminCMS.esc((g && g.region) || '')}" placeholder="地区（如：上海）">
+                <input type="text" data-fan-admin="${i}" value="${window.AdminCMS.esc((g && g.admin) || '')}" placeholder="管理员（可选，如：张三）">
+                <input type="text" data-fan-admin-url="${i}" value="${window.AdminCMS.esc((g && g.adminUrl) || '')}" placeholder="管理员主页链接（可选，https://...）">
+                <input type="text" data-fan-url="${i}" value="${window.AdminCMS.esc((g && g.url) || '')}" placeholder="https://... 邀请链接（可留空）">
+                <input type="text" data-fan-note="${i}" value="${window.AdminCMS.esc((g && g.note) || '')}" placeholder="备注（可选）">
+                <button class="btn--danger" data-remove-fan-group="${i}" title="删除群组">×</button>
+            </div>
+        `).join('') || '<p class="form-help">还没有群组，点右上角「+ 添加群组」。</p>';
+    }
+
+    function collectFanGroups() {
+        config.fanGroups = config.fanGroups || { heading: '粉丝群组', desc: '', groups: [] };
+        const h = $('#fanGroups-heading'); config.fanGroups.heading = h ? h.value.trim() : '粉丝群组';
+        const d = $('#fanGroups-desc'); config.fanGroups.desc = d ? d.value.trim() : '';
+        const visInput = $('#fanGroups-visible');
+        if (visInput) setModuleVisible('fanGroups', visInput.checked);
+        const groups = [];
+        document.querySelectorAll('#fan-groups-list .fan-group-item').forEach(item => {
+            const i = item.dataset.index;
+            const val = sel => { const el = item.querySelector(sel); return el ? el.value.trim() : ''; };
+            const name = val(`[data-fan-name="${i}"]`);
+            const platform = val(`[data-fan-platform="${i}"]`);
+            const country = val(`[data-fan-country="${i}"]`);
+            const region = val(`[data-fan-region="${i}"]`);
+            const admin = val(`[data-fan-admin="${i}"]`);
+            const adminUrl = val(`[data-fan-admin-url="${i}"]`);
+            const url = val(`[data-fan-url="${i}"]`);
+            const note = val(`[data-fan-note="${i}"]`);
+            if (!name && !url) return;      // 全空则丢弃
+            groups.push({ name, platform, country, region, admin, adminUrl, url, note });
+        });
+        config.fanGroups.groups = groups;
     }
 
     async function renderThemes() {
@@ -1276,7 +1335,10 @@
         document.querySelectorAll('#modules-list .module-row').forEach(row => {
             const idx = parseInt(row.dataset.moduleIndex);
             const original = config.modules[idx] || {};
-            const type = row.querySelector('.module-row__type').textContent.trim();
+            // ⚠️ 必须从 data-module-type 取原始 type：界面上显示的是中文标签，
+            // 用 textContent 反读会把中文当 type 写回 config（曾把 images 写成「写真/图集」导致模块失效）
+            const type = (row.dataset.moduleType || '').trim()
+                || row.querySelector('.module-row__type').textContent.trim();
             const visible = row.querySelector(`[data-module-visible="${idx}"]`).checked;
             const updated = Object.assign({}, original, { type, visible, nav: original.nav !== false });
             if (type === 'text') {
@@ -1404,13 +1466,33 @@
        事件绑定
        =================================================================== */
 
+    const MEDIA_PAGE = 20;       // 媒体库每页条数
+    let mediaItems = [];         // 最近一次拉取的全部媒体（本地 + R2 远程）
+    let mediaPageCount = 1;      // 当前页（1-based）
+
     async function renderMedia() {
         try {
             const res = await fetch('/api/images');
             const data = await res.json();
-            const list = $('#media-list');
-            if (!list) return;
-            list.innerHTML = (data || []).map(img => `
+            mediaItems = Array.isArray(data) ? data : [];
+            renderMediaList();
+        } catch (e) {
+            console.error('media load error', e);
+        }
+    }
+
+    /** 按当前页渲染媒体网格 + 分页条（分页条在网格外，避免被当作网格项） */
+    function renderMediaList() {
+        const list = $('#media-list');
+        if (!list) return;
+        const total = mediaItems.length;
+        const totalPages = Math.max(1, Math.ceil(total / MEDIA_PAGE));
+        if (mediaPageCount > totalPages) mediaPageCount = totalPages;
+        if (mediaPageCount < 1) mediaPageCount = 1;
+        const start = (mediaPageCount - 1) * MEDIA_PAGE;
+        const pageItems = mediaItems.slice(start, start + MEDIA_PAGE);
+
+        list.innerHTML = pageItems.map(img => `
                 <div class="media-item${img.remote ? ' media-item--remote' : ''}">
                     <img src="${img.url}" alt="媒体" loading="lazy">
                     <button class="media-item__copy" data-copy="${window.AdminCMS.esc(img.url)}" title="复制链接">⧉</button>
@@ -1418,9 +1500,12 @@
                     <span class="media-item__url"><span class="media-item__tag">${img.remote ? 'R2' : '本地'}</span>${img.url}</span>
                 </div>
             `).join('') || '<p>暂无图片，点击右上角上传。</p>';
-        } catch (e) {
-            console.error('media load error', e);
-        }
+
+        const pagerBox = $('#media-pager');
+        if (!pagerBox) return;
+        pagerBox.innerHTML = total > MEDIA_PAGE
+            ? `<p class="media-count">共 ${total} 张 · 第 ${mediaPageCount} / ${totalPages} 页</p>${paginationHtml(mediaPageCount, totalPages)}`
+            : '';
     }
 
     function copyToClipboard(text) {
@@ -1447,6 +1532,22 @@
     function bindMedia() {
         const input = $('#media-upload');
         if (!input) return;
+
+        // 分页条：委托在常驻容器上绑定一次（renderMediaList 会重写其 innerHTML，
+        // 若每次渲染都绑一次会累积监听器）
+        const pagerBox = $('#media-pager');
+        if (pagerBox) {
+            pagerBox.addEventListener('click', e => {
+                const btn = e.target.closest('[data-page]');
+                if (!btn || btn.disabled) return;
+                const pg = parseInt(btn.dataset.page, 10);
+                if (!Number.isInteger(pg) || pg < 1) return;
+                mediaPageCount = pg;
+                renderMediaList();
+                pagerBox.scrollIntoView({ block: 'nearest' });
+            });
+        }
+
         input.addEventListener('change', async () => {
             const files = Array.from(input.files || []);
             for (const file of files) {
@@ -1520,6 +1621,7 @@
             awards: ['awards'],
             schedule: ['schedule'],
             about: ['about'],
+            fanGroups: ['fanGroups'],
             footer: ['footer']
         };
         Object.keys(map).forEach(section => {
@@ -1681,6 +1783,9 @@
     function onAutoSaveInput(e) {
         const el = e.target;
         if (el.type === 'file') return;
+        // 纯 UI 控件不算数据：分区搜索框、全局搜索、以及任何标记了 data-no-dirty 的输入。
+        // 否则「在搜索框打字」会 markDirty → 失焦自动保存 → 重绘列表，把搜索结果冲掉。
+        if (el.matches('[data-filter-for], #globalSearch, [data-no-dirty]')) return;
         const card = el.closest('.section-card');
         if (!card || !card.id) return;
         const section = card.id.replace('section-', '');
@@ -1749,6 +1854,42 @@
     /* ===================================================================
        列表浏览优化：折叠卡片 + 分区过滤 + 全局搜索
        =================================================================== */
+    /** 应用分区过滤（幂等，可在列表重绘后重复调用）
+     *  返回 { total, shown }；写真集因分页渲染走独立分支，不在此处理。
+     *  抽成函数的原因：自动保存成功后会重绘列表，若不重新应用过滤，
+     *  用户搜完再编辑字段 → 列表被重建 → 过滤"失效"（搜索框有词但结果全回来了）。 */
+    function applySectionFilter(section, q) {
+        const countEl = document.querySelector('[data-filter-for="' + section + '"]')?.parentElement.querySelector('.section-filter__count');
+        const rows = [];
+        if (section === 'works') rows.push(...document.querySelectorAll('#work-category-panel .admin-work-item'));
+        else if (section === 'news') rows.push(...document.querySelectorAll('#news-list .admin-content-item'));
+        else if (section === 'awards') rows.push(...document.querySelectorAll('#awards-list .admin-content-item'));
+        else if (section === 'schedule') {
+            rows.push(...document.querySelectorAll('#schedule-list .admin-content-item'),
+                ...document.querySelectorAll('#schedule-announcements .admin-content-item'));
+        } else return null;
+        const key = String(q || '').trim().toLowerCase();
+        let total = 0, shown = 0;
+        rows.forEach(r => {
+            total++;
+            const hit = !key || String(r.dataset.search || '').includes(key);
+            r.style.display = hit ? '' : 'none';
+            if (hit) shown++;
+        });
+        if (countEl) countEl.textContent = total ? (shown + ' / ' + total + ' 条') : '';
+        return { total, shown };
+    }
+
+    /** 重绘后重新应用所有分区过滤（列表重建会丢失 display:none 状态与计数） */
+    function reapplySectionFilters() {
+        document.querySelectorAll('[data-filter-for]').forEach(input => {
+            const section = input.dataset.filterFor;
+            if (section === 'gallery') return;             // 分页渲染：query 存在模块变量里，renderGalleryList 自身会处理
+            if (input.value.trim()) applySectionFilter(section, input.value);
+            else applySectionFilter(section, '');          // 空词也刷新计数
+        });
+    }
+
     function bindListControls() {
         // 1) 点击条目头部展开/收起（忽略按钮，避免误触删除）
         document.addEventListener('click', e => {
@@ -1771,22 +1912,7 @@
                     renderGalleryList();
                     return;
                 }
-                const rows = [];
-                if (section === 'works') rows.push(...document.querySelectorAll('#work-category-panel .admin-work-item'));
-                else if (section === 'news') rows.push(...document.querySelectorAll('#news-list .admin-content-item'));
-                else if (section === 'awards') rows.push(...document.querySelectorAll('#awards-list .admin-content-item'));
-                else if (section === 'schedule') {
-                    rows.push(...document.querySelectorAll('#schedule-list .admin-content-item'),
-                        ...document.querySelectorAll('#schedule-announcements .admin-content-item'));
-                }
-                let total = 0, shown = 0;
-                rows.forEach(r => {
-                    total++;
-                    const hit = !q || String(r.dataset.search || '').includes(q);
-                    r.style.display = hit ? '' : 'none';
-                    if (hit) shown++;
-                });
-                if (countEl) countEl.textContent = total ? (shown + ' / ' + total + ' 条') : '';
+                applySectionFilter(section, q);
             });
         });
 
@@ -2115,7 +2241,27 @@
         });
 
         // 社交
+        // 粉丝群组：增删
+        const addFan = $('#btn-add-fan-group');
+        if (addFan) addFan.addEventListener('click', () => {
+            // 重绘会重建列表 → 先 collect 把当前 DOM 值回写 config，否则未保存的编辑会被冲掉
+            collectFanGroups();
+            config.fanGroups.groups.push({ name: '', platform: '', country: '', region: '', admin: '', adminUrl: '', url: '', note: '' });
+            renderFanGroups();
+        });
+        const fanList = $('#fan-groups-list');
+        if (fanList) fanList.addEventListener('click', e => {
+            const btn = e.target.closest('[data-remove-fan-group]');
+            if (!btn) return;
+            collectFanGroups();                       // 先落当前编辑
+            const i = parseInt(btn.dataset.removeFanGroup, 10);
+            (config.fanGroups.groups || []).splice(i, 1);
+            renderFanGroups();
+            showToast('已删除群组（保存后生效）');
+        });
+
         $('#btn-add-social').addEventListener('click', () => {
+            collectSocial();                          // 重绘前先落当前编辑（否则被冲掉）
             config.social = config.social || { links: [] };
             config.social.links.push({ name: '', url: '' });
             renderSocial();
@@ -2123,6 +2269,7 @@
         $('#social-list').addEventListener('click', e => {
             const btn = e.target.closest('[data-remove-social]');
             if (!btn) return;
+            collectSocial();                          // 先落当前编辑，再删（否则重绘冲掉其他行）
             const idx = parseInt(btn.dataset.removeSocial);
             config.social.links.splice(idx, 1);
             renderSocial();
@@ -2130,6 +2277,7 @@
 
         // 页脚版权链接：新增插到固定条（末位）之前；固定条不可删除
         $('#btn-add-footer-link').addEventListener('click', () => {
+            collectFooter();                          // 重绘前先落当前编辑
             config.footer = config.footer || {};
             if (!Array.isArray(config.footer.links)) config.footer.links = [];
             const fixedIdx = config.footer.links.findIndex(l => l && l.text === FIXED_FOOTER_LINK.text && l.url === FIXED_FOOTER_LINK.url);
@@ -2142,6 +2290,7 @@
             footerLinksList.addEventListener('click', e => {
                 const btn = e.target.closest('[data-remove-footer-link]');
                 if (!btn) return;
+                collectFooter();                      // 先落当前编辑，再删
                 const links = Array.isArray(config.footer.links) ? config.footer.links : [];
                 const idx = parseInt(btn.dataset.removeFooterLink);
                 const target = links[idx];
@@ -2154,6 +2303,7 @@
 
         // 制作组成员：新增/删除
         $('#btn-add-credit-member').addEventListener('click', () => {
+            collectFooter();                          // 重绘前先落当前编辑
             config.footer = config.footer || {};
             if (!config.footer.credits || typeof config.footer.credits !== 'object') config.footer.credits = { members: [] };
             if (!Array.isArray(config.footer.credits.members)) config.footer.credits.members = [];
@@ -2165,6 +2315,7 @@
             footerCreditsList.addEventListener('click', e => {
                 const btn = e.target.closest('[data-remove-credit]');
                 if (!btn) return;
+                collectFooter();                      // 先落当前编辑，再删
                 const idx = parseInt(btn.dataset.removeCredit);
                 const members = (config.footer.credits && config.footer.credits.members) || [];
                 if (members[idx]) members.splice(idx, 1);

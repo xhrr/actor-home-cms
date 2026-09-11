@@ -20,6 +20,10 @@
         afterRender: []
     };
 
+    // 运行时国际化：i18n.js 同步加载在前，此处仅取引用（缺失时回退中文默认值）
+    const T = window.t || ((key, fallback) => (fallback == null ? key : fallback));
+    const i18nPick = (window.I18N && window.I18N.pick) || ((obj, field) => (obj && obj[field] != null ? obj[field] : ''));
+
     function esc(str) {
         if (typeof str !== 'string') return '';
         return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -251,7 +255,9 @@
         const links = document.getElementById('navLinks');
         if (logo && C.actor) logo.textContent = C.actor.nameEn || '';
         if (links) {
-            links.innerHTML = buildNavLinks().map(l => `<li><a class="nav__link" href="${escNav(l.href)}">${escNav(l.text)}</a></li>`).join('');
+            links.innerHTML = buildNavLinks().map(l => `<li><a class="nav__link" href="${escNav(l.href)}">${escNav(l.text)}</a></li>`).join('')
+                + langSwitchHtml();
+            bindLangSwitch(links);
         }
         const nav = document.getElementById('nav');
         if (!nav) return;
@@ -289,18 +295,19 @@
     }
 
     /** 模块类型 → 导航文案：跟随后台「区域标题」(config 里各分区的 heading)，
-     *  未配置则用调用方给的默认短名。首页锚点导航与子页面链接导航共用，保证两处一致。 */
+     *  未配置则用词典默认短名。首页锚点导航与子页面链接导航共用，保证两处一致。 */
     function navLabel(type, fallback) {
         const C = window.SITE_CONFIG || {};
         const pd = (C.plugins && C.plugins.data) || {};
         const pick = v => { const s = String(v == null ? '' : v).trim(); return s || fallback; };
         switch (type) {
-            case 'about': return pick(C.about && C.about.heading);
-            case 'works': return pick(C.works && C.works.heading);
-            case 'images': return pick(C.gallery && C.gallery.heading);
-            case 'news': return pick((pd['actor-news'] || {}).heading);
-            case 'awards': return pick((pd['actor-awards'] || {}).heading);
-            case 'schedule': return pick((pd['actor-schedule'] || {}).heading);
+            case 'about': return pick(i18nPick(C.about || {}, 'heading'));
+            case 'works': return pick(i18nPick(C.works || {}, 'heading'));
+            case 'images': return pick(i18nPick(C.gallery || {}, 'heading'));
+            case 'news': return pick(i18nPick(pd['actor-news'] || {}, 'heading'));
+            case 'awards': return pick(i18nPick(pd['actor-awards'] || {}, 'heading'));
+            case 'schedule': return pick(i18nPick(pd['actor-schedule'] || {}, 'heading'));
+            case 'fanGroups': return pick(i18nPick(C.fanGroups || {}, 'heading'));
             default: return fallback;
         }
     }
@@ -310,15 +317,25 @@
         const mods = C.modules || [];
         const vis = type => mods.some(m => m.type === type && m.visible !== false);
         const links = [];
-        if (vis('hero') || vis('hero-split')) links.push({ href: '/', text: '首页' });
-        if (vis('about')) links.push({ href: '/about.html', text: navLabel('about', '关于') });
-        if (vis('works')) links.push({ href: '/works.html', text: navLabel('works', '作品') });
-        if (vis('images')) links.push({ href: '/gallery.html', text: navLabel('images', '写真') });
-        if (vis('news')) links.push({ href: '/news.html', text: navLabel('news', '动态') });
-        if (vis('awards')) links.push({ href: '/awards.html', text: navLabel('awards', '荣誉') });
-        if (vis('schedule')) links.push({ href: '/schedule.html', text: navLabel('schedule', '行程') });
-        if (vis('footer')) links.push({ href: '/#footer', text: '联系' });
+        if (vis('hero') || vis('hero-split')) links.push({ href: '/', text: T('nav.home', '首页') });
+        if (vis('about')) links.push({ href: '/about.html', text: navLabel('about', T('nav.about', '关于')) });
+        if (vis('works')) links.push({ href: '/works.html', text: navLabel('works', T('nav.works', '作品')) });
+        if (vis('images')) links.push({ href: '/gallery.html', text: navLabel('images', T('nav.gallery', '写真')) });
+        if (vis('news')) links.push({ href: '/news.html', text: navLabel('news', T('nav.news', '动态')) });
+        if (vis('awards')) links.push({ href: '/awards.html', text: navLabel('awards', T('nav.awards', '荣誉')) });
+        if (vis('schedule')) links.push({ href: '/schedule.html', text: navLabel('schedule', T('nav.schedule', '行程')) });
+        // 粉丝群组：独立页面，入口在行程之后
+        if (vis('fanGroups')) links.push({ href: '/groups.html', text: navLabel('fanGroups', T('nav.groups', '群组')) });
+        if (vis('footer')) links.push({ href: '/#footer', text: T('nav.footer', '联系') });
         return links;
+    }
+
+    /** 语言切换控件：注入到导航链接列表末尾（多语言启用时才有内容） */
+    function langSwitchHtml() {
+        return (window.I18N && window.I18N.langSwitchHtml) ? window.I18N.langSwitchHtml() : '';
+    }
+    function bindLangSwitch(root) {
+        if (window.I18N && window.I18N.bindLangSwitch) window.I18N.bindLangSwitch(root);
     }
 
     /* ---------- 分享弹层：二维码 + 卡片图 + 复制链接 ---------- */
@@ -358,14 +375,14 @@
         m.className = 'share-modal';
         m.innerHTML = `
             <div class="share-modal__backdrop"></div>
-            <div class="share-modal__card" role="dialog" aria-modal="true" aria-label="分享">
-                <button type="button" class="share-modal__close" aria-label="关闭">×</button>
+            <div class="share-modal__card" role="dialog" aria-modal="true" aria-label="${esc(T('common.share', '分享'))}">
+                <button type="button" class="share-modal__close" aria-label="${esc(T('common.close', '关闭'))}">×</button>
                 <p class="share-modal__eyebrow">SHARE</p>
                 <div class="share-modal__poster"></div>
-                <p class="share-modal__hint">海报生成中…</p>
+                <p class="share-modal__hint">${esc(T('share.generating', '海报生成中…'))}</p>
                 <div class="share-modal__actions">
-                    <button type="button" class="share-modal__download">保存图片</button>
-                    <button type="button" class="share-modal__copy">复制链接</button>
+                    <button type="button" class="share-modal__download">${esc(T('share.save', '保存图片'))}</button>
+                    <button type="button" class="share-modal__copy">${esc(T('common.copyLink', '复制链接'))}</button>
                 </div>
             </div>`;
         document.body.appendChild(m);
@@ -375,8 +392,8 @@
         m.querySelector('.share-modal__copy').addEventListener('click', () => {
             const btn = m.querySelector('.share-modal__copy');
             copyToClipboard(m.dataset.url || window.location.href).then(ok => {
-                btn.textContent = ok ? '已复制 ✓' : '复制失败';
-                setTimeout(() => { btn.textContent = '复制链接'; }, 1600);
+                btn.textContent = ok ? T('common.copied', '已复制 ✓') : T('common.copyFailed', '复制失败');
+                setTimeout(() => { btn.textContent = T('common.copyLink', '复制链接'); }, 1600);
             });
         });
         return m;
@@ -408,7 +425,7 @@
             loadImage(poster).then(() => {
                 const im = document.createElement('img');
                 im.src = poster;
-                im.alt = '分享海报';
+                im.alt = T('share.posterAlt', '分享海报');
                 box.appendChild(im);
                 dl.style.display = '';
                 // 海报可能放在跨域图床：优先 fetch→blob 直接下载，受限时新标签打开（长按/右键另存）
@@ -430,15 +447,97 @@
                     });
                 };
             }).catch(() => {
-                hint.textContent = '海报加载失败，可直接复制链接';
+                hint.textContent = T('share.posterFailed', '海报加载失败，可直接复制链接');
                 dl.style.display = 'none';
             });
         } else {
             dl.style.display = 'none';
-            hint.textContent = '未配置分享海报，可直接复制链接';
+            hint.textContent = T('share.noPoster', '未配置分享海报，可直接复制链接');
         }
         m.classList.add('is-open');
         document.body.style.overflow = 'hidden';
+    }
+
+    /* ---------- 粉丝群组：卡片与筛选项（首页模块与 /groups.html 共用） ---------- */
+
+    /** 单张群组卡片：大横向方块。有链接渲染 <a>（带 ↗），无链接渲染 <div>（不暗示可点）
+     *  name/note/admin 走内容多语言（pick）；country/region 是筛选键，保持原值不翻。
+     *  ⚠️ 卡片本身可能是 <a>（有邀请链接），故管理员链接不能再用 <a>（锚点不可嵌套），
+     *     改用 data-admin-href + 事件委托（见下方 bindFanGroupAdminLinks）。 */
+    function fanGroupCardHtml(g) {
+        const url = safeUrl(g.url, 'link');
+        const name = esc(String(i18nPick(g, 'name') || '').trim() || T('groups.groupFallback', '粉丝群'));
+        const platform = esc(String(g.platform || '').trim());
+        const note = esc(String(i18nPick(g, 'note') || '').trim());
+        const admin = esc(String(i18nPick(g, 'admin') || '').trim());
+        const adminUrl = safeUrl(g.adminUrl, 'link');
+        const place = esc([g.country, g.region].map(x => String(x || '').trim()).filter(Boolean).join(' · '));
+        const adminHtml = admin ? (
+            `<span class="fan-group__admin" title="${admin}">${esc(T('groups.adminPrefix', '管理员：'))}`
+            + (adminUrl
+                ? `<span class="fan-group__admin-link" role="link" tabindex="0" data-admin-href="${adminUrl}" title="${adminUrl}">${admin} ↗</span>`
+                : `<span class="fan-group__admin-name">${admin}</span>`)
+            + '</span>'
+        ) : '';
+        const inner = `
+            <span class="fan-group__main">
+                <span class="fan-group__name">${name}</span>
+                ${note ? `<span class="fan-group__note">${note}</span>` : ''}
+            </span>
+            <span class="fan-group__meta">
+                ${platform ? `<span class="fan-group__platform">${platform}</span>` : ''}
+                ${place ? `<span class="fan-group__place">${place}</span>` : ''}
+            </span>
+            ${url ? '<span class="fan-group__arrow" aria-hidden="true">↗</span>' : ''}
+            ${adminHtml}`;
+        return url
+            ? `<a class="fan-group${adminHtml ? ' fan-group--has-admin' : ''}" href="${url}" target="_blank" rel="noopener noreferrer">${inner}</a>`
+            : `<div class="fan-group fan-group--plain${adminHtml ? ' fan-group--has-admin' : ''}">${inner}</div>`;
+    }
+
+    /* 管理员个人主页链接：事件委托在 document 上注册一次（cms.js 每页都加载）。
+       卡片本身是 <a> 时，点管理员链接必须阻止冒泡并 preventDefault，否则会连带跳去群组邀请链接。 */
+    let fanAdminBound = false;
+    function bindFanGroupAdminLinks() {
+        if (fanAdminBound || typeof document === 'undefined') return;
+        fanAdminBound = true;
+        const open = el => {
+            const href = el && el.getAttribute('data-admin-href');
+            if (href) window.open(href, '_blank', 'noopener,noreferrer');
+        };
+        document.addEventListener('click', e => {
+            const el = e.target && e.target.closest ? e.target.closest('[data-admin-href]') : null;
+            if (!el) return;
+            e.preventDefault();
+            e.stopPropagation();
+            open(el);
+        }, true);
+        document.addEventListener('keydown', e => {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            const el = e.target && e.target.closest ? e.target.closest('[data-admin-href]') : null;
+            if (!el) return;
+            e.preventDefault();
+            e.stopPropagation();
+            open(el);
+        }, true);
+    }
+
+    /** 有效群组列表（名称或链接至少一项） */
+    function fanGroupList(fg) {
+        const groups = (fg && Array.isArray(fg.groups)) ? fg.groups : [];
+        return groups.filter(g => g && (String(g.url || '').trim() || String(g.name || '').trim()));
+    }
+
+    /** 从群组数据提取筛选维度（去重保序）：国家 / 地区 */
+    function fanGroupFilterData(groups) {
+        const countries = [], regions = [];
+        (groups || []).forEach(g => {
+            const c = String(g.country || '').trim();
+            const r = String(g.region || '').trim();
+            if (c && !countries.includes(c)) countries.push(c);
+            if (r && !regions.includes(r)) regions.push(r);
+        });
+        return { countries, regions };
     }
 
     window.CMS = {
@@ -447,6 +546,10 @@
         getRenderer,
         getNav,
         navLabel,
+        langSwitchHtml,
+        bindLangSwitch,
+        t: T,
+        pick: i18nPick,
         hasRenderer,
         on,
         runHook,
@@ -458,6 +561,10 @@
         revealNow,
         openShareModal,
         copyToClipboard,
+        fanGroupCardHtml,
+        fanGroupList,
+        fanGroupFilterData,
+        bindFanGroupAdminLinks,
         utils: {
             esc,
             cleanUrl,
@@ -469,4 +576,7 @@
             sortByTime
         }
     };
+
+    // 管理员主页链接：事件委托，页面加载即挂（卡片内容后续动态渲染也能命中）
+    bindFanGroupAdminLinks();
 })();

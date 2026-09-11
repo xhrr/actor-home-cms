@@ -25,6 +25,7 @@
             <a class="sidebar__link" data-section="about">关于</a>
             <a class="sidebar__link" data-section="social">社交链接</a>
             <a class="sidebar__link" data-section="footer">版权信息</a>
+            <a class="sidebar__link" data-section="fanGroups">粉丝群组</a>
             <!-- 模块管理入口已屏蔽（事故 11/12 相关，显隐开关在各内容分区仍可用）。
                  #section-modules 区块保留在 DOM（collectModules 依赖其卡片，删掉会导致全局保存清空 config.modules）。
                  恢复方法：把下面这行加回侧边栏：<a class="sidebar__link" data-section="modules">模块管理</a> -->
@@ -326,6 +327,36 @@
             </div>
         </div>
 
+        <div id="section-fanGroups" class="section-card">
+            <div class="section-header">
+                <h3>粉丝群组</h3>
+                <button type="button" class="btn btn--ghost btn--sm" id="btn-add-fan-group">+ 添加群组</button>
+            </div>
+            <div class="form-group">
+                <label class="toggle-label">
+                    <input type="checkbox" id="fanGroups-visible"> 显示粉丝群组板块
+                </label>
+                <p class="form-help">位置在页面最底部（版权信息之前）；未添加任何群组时前台不渲染该板块。</p>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>区域标题</label>
+                    <input type="text" id="fanGroups-heading" placeholder="例如：粉丝群组">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>板块说明（可选）</label>
+                <textarea id="fanGroups-desc" rows="3" placeholder="例如：加入群组一起交流，进群请先阅读群规。支持 HTML 标签，如 <strong>加粗</strong>、<a href=&quot;https://...&quot;>链接</a>、<br> 换行。"></textarea>
+                <p class="form-help">支持 HTML 标签：<code>&lt;strong&gt;</code> <code>&lt;em&gt;</code> <code>&lt;a href&gt;</code> <code>&lt;br&gt;</code> <code>&lt;p&gt;</code> <code>&lt;ul&gt;</code>/<code>&lt;li&gt;</code> 等；脚本、样式与 <code>on*</code> 事件属性会被自动过滤。</p>
+            </div>
+            <div class="form-group">
+                <label>群组列表</label>
+                <div id="fan-groups-list"></div>
+                <p class="form-help">「名称」如官方后援会 / 剧迷小组；「平台」如 QQ / 微信 / 微博 / 抖音；「国家 / 地区」用于粉丝群组页的点击筛选（如 中国 / 上海，可留空）；「管理员」填群组负责人（可选，前台显示为「管理员：张三」）；「管理员主页链接」填其个人主页（可选，填写后前台管理员名字可点击跳转）；「邀请链接」填完整地址，留空则仅展示文字不跳转。</p>
+                <p class="form-help">首页会展示前几个群组（数量见「模块管理」），完整列表与筛选在 <code>/groups.html</code>。</p>
+            </div>
+        </div>
+
         <div id="section-media" class="section-card">
             <div class="section-header">
                 <h3>媒体库</h3>
@@ -333,6 +364,7 @@
                 <input type="file" id="media-upload" accept="image/*" multiple style="display:none">
             </div>
             <div id="media-list" class="media-grid"></div>
+            <div id="media-pager"></div>
         </div>
 
         <div id="section-theme" class="section-card">

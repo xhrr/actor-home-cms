@@ -59,7 +59,7 @@
         scrollHint = document.createElement('button');
         scrollHint.className = 'hero__scroll-hint';
         scrollHint.type = 'button';
-        scrollHint.setAttribute('aria-label', '下滑探索');
+        scrollHint.setAttribute('aria-label', (window.I18N && window.I18N.t('motion.scrollHint', '下滑探索')) || '下滑探索');
         scrollHint.innerHTML = '<span></span>';
         scrollHint.addEventListener('click', () => {
             const next = heroEl.nextElementSibling;

@@ -17,11 +17,12 @@
         const links = visibleModules.map(mod => {
             const nav = window.CMS.getNav(mod.type);
             if (!nav) return '';
-            // 文案跟随后台「区域标题」（getNav 里是硬编码默认短名，此处覆盖）
+            // 文案跟随后台「区域标题」（getNav 里是词典默认短名，此处覆盖）
             const text = window.CMS.navLabel ? window.CMS.navLabel(mod.type, nav.text) : nav.text;
             return `<li><a class="nav__link" href="${esc(nav.href)}">${esc(text)}</a></li>`;
         }).join('');
-        container.innerHTML = links;
+        container.innerHTML = links + (window.CMS.langSwitchHtml ? window.CMS.langSwitchHtml() : '');
+        if (window.CMS.bindLangSwitch) window.CMS.bindLangSwitch(container);
         if (logo && C.actor && C.actor.nameEn) logo.textContent = C.actor.nameEn;
     }
 
@@ -226,7 +227,8 @@
         }).join('');
 
         if (C.actor && C.actor.name) {
-            document.title = C.actor.name + (C.actor.tagline ? ' | ' + C.actor.tagline : '');
+            const title = C.actor.name + (C.actor.tagline ? ' | ' + C.actor.tagline : '');
+            document.title = window.I18N && window.I18N.isDefault ? title : (C.actor.nameEn || C.actor.name);
         }
 
         rebuildNav(modules);

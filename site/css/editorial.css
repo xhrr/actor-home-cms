@@ -153,6 +153,52 @@ a {
     transform-origin: left center;
 }
 
+/* 非中文语言：导航文案更长（英文/越南语），收紧字距并禁止折行，
+   避免每个条目被挤成两行；宽度不足由下方 1100px 抽屉断点接管 */
+html[lang="en"] .nav__links,
+html[lang="vi"] .nav__links {
+    gap: 1.5rem;
+}
+
+html[lang="en"] .nav__link,
+html[lang="vi"] .nav__link {
+    white-space: nowrap;
+    letter-spacing: 0.08em;
+    font-size: 0.7rem;
+}
+
+html[lang="en"] .nav__logo,
+html[lang="vi"] .nav__logo {
+    white-space: nowrap;
+}
+
+/* 语言切换：导航右侧细分隔控件（多语言启用时注入） */
+.nav__lang {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-left: 0.5rem;
+    padding-left: 1rem;
+    border-left: 1px solid var(--fg-10);
+}
+
+.nav__lang-btn {
+    padding: 0.15rem 0;
+    background: none;
+    border: 0;
+    font-family: var(--font-sans);
+    font-size: 0.68rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--fg-40);
+    cursor: pointer;
+    transition: color var(--dur-fast) ease;
+}
+
+.nav__lang-btn:hover { color: var(--fg-60); }
+.nav__lang-btn.is-active { color: var(--fg); }
+.nav__lang-sep { color: var(--fg-20); font-size: 0.68rem; }
+
 .nav__toggle {
     display: none;
     flex-direction: column;
@@ -1179,6 +1225,14 @@ a.footer__credits-name:hover {
         visibility: visible;
     }
 
+    /* 移动端下拉：语言切换改为独立一行，去掉竖分隔线 */
+    .nav__lang {
+        margin-left: 0;
+        padding-left: 0;
+        border-left: 0;
+        padding-top: 0.5rem;
+    }
+
     .nav__toggle {
         display: flex;
     }
@@ -1203,6 +1257,82 @@ a.footer__credits-name:hover {
     .plugin-list__item {
         grid-template-columns: 1fr;
         gap: 0.75rem;
+    }
+}
+
+/* 英文/越南语等非中文语言的导航文案更长（SELECTED WORKS / LATEST NEWS / FAN GROUPS / Tác phẩm / Giải thưởng …），
+   窄屏会挤爆一行。此处对非中文语言提前切到抽屉导航，
+   中文（默认语言）仍沿用 640px 断点，避免默认语言布局被改变。
+   越南语文案最长，断点更高（1300px）；英文 1100px 足够。 */
+@media (max-width: 1100px) {
+    html[lang="en"] .nav__links {
+        position: fixed;
+        top: var(--nav-h);
+        left: 0;
+        right: 0;
+        flex-direction: column;
+        align-items: flex-start;
+        background: var(--bg);
+        border-bottom: 1px solid var(--fg-10);
+        padding: 1.5rem;
+        gap: 1.25rem;
+        transform: translateY(-12px);
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s;
+    }
+
+    html[lang="en"] .nav__links--open {
+        transform: translateY(0);
+        opacity: 1;
+        visibility: visible;
+    }
+
+    html[lang="en"] .nav__lang {
+        margin-left: 0;
+        padding-left: 0;
+        border-left: 0;
+        padding-top: 0.5rem;
+    }
+
+    html[lang="en"] .nav__toggle {
+        display: flex;
+    }
+}
+
+@media (max-width: 1300px) {
+    html[lang="vi"] .nav__links {
+        position: fixed;
+        top: var(--nav-h);
+        left: 0;
+        right: 0;
+        flex-direction: column;
+        align-items: flex-start;
+        background: var(--bg);
+        border-bottom: 1px solid var(--fg-10);
+        padding: 1.5rem;
+        gap: 1.25rem;
+        transform: translateY(-12px);
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s;
+    }
+
+    html[lang="vi"] .nav__links--open {
+        transform: translateY(0);
+        opacity: 1;
+        visibility: visible;
+    }
+
+    html[lang="vi"] .nav__lang {
+        margin-left: 0;
+        padding-left: 0;
+        border-left: 0;
+        padding-top: 0.5rem;
+    }
+
+    html[lang="vi"] .nav__toggle {
+        display: flex;
     }
 }
 
@@ -2800,3 +2930,245 @@ html.motion-gsap .hero.hero-enter .hero__content {
     margin-top: -1px;
     pointer-events: none;
 }
+
+/* ===================================================================
+   粉丝群组（独立页面 /groups.html）
+   由 page.js 的 renderGroups 渲染；无群组时显示空状态
+   =================================================================== */
+.fan-groups__desc {
+    /* 只改上下外边距，水平 auto 边距沿用 .section > *，与 section__head 同起点 */
+    margin-top: -1.75rem;
+    margin-bottom: 2.5rem;
+    font-size: 0.9rem;
+    line-height: 1.9;
+    color: var(--fg-60);
+}
+
+/* 说明支持 HTML 标签（经 sanitizeHtml 过滤）：补回链接/加粗/列表的基础排版，
+   否则会被全局 reset（a{text-decoration:none}）抹成普通文字。
+   链接默认不带下划线，悬停才出现（与站内 .hover-underline 习惯一致）。 */
+.fan-groups__desc a {
+    color: var(--fg);
+    text-decoration: none;
+    text-underline-offset: 3px;
+    transition: color var(--dur-fast) ease, text-decoration-color var(--dur-fast) ease;
+}
+.fan-groups__desc a:hover {
+    color: var(--fg-60);
+    text-decoration: underline;
+}
+.fan-groups__desc strong, .fan-groups__desc b { font-weight: 600; color: var(--fg); }
+.fan-groups__desc em, .fan-groups__desc i { font-style: italic; }
+.fan-groups__desc p { margin: 0 0 0.6em; }
+.fan-groups__desc p:last-child { margin-bottom: 0; }
+.fan-groups__desc ul, .fan-groups__desc ol { margin: 0.4em 0 0.6em; padding-left: 1.4em; }
+.fan-groups__desc li { margin-bottom: 0.25em; }
+.fan-groups__desc img { max-width: 100%; height: auto; }
+.fan-groups__desc code {
+    padding: 0.05em 0.35em;
+    font-size: 0.85em;
+    background: var(--fg-10);
+}
+
+/* 群组卡片：单行网格 = 主区 | 平台/地区 | 箭头；
+   有管理员时开第二行，管理员整行铺开（不再挤压群名、也不截断）。
+   ⚠️ 列用 minmax(0, 1fr)：1fr 的自动最小尺寸是 min-content，长群名会把轨道撑出容器造成横向溢出 */
+.fan-group {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas: "main meta arrow";
+    align-items: center;
+    column-gap: 2rem;
+    row-gap: 0.7rem;
+    min-width: 0;
+    min-height: 7.5rem;
+    padding: 1.75rem 2.25rem;
+    border: 1px solid var(--fg-10);
+    background: var(--fg-02);
+    color: var(--fg);
+    text-decoration: none;
+    transition: border-color var(--dur-mid) ease, background-color var(--dur-mid) ease;
+}
+
+/* 有管理员 → 增加整行，管理员独占第二行 */
+.fan-group--has-admin {
+    grid-template-areas:
+        "main meta arrow"
+        "admin admin admin";
+}
+
+a.fan-group:hover {
+    border-color: var(--fg-40);
+    background: var(--fg-10);
+}
+
+.fan-group--plain { cursor: default; }
+
+/* 左侧主区：群名（大标题）+ 备注（副行） */
+.fan-group__main {
+    grid-area: main;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.fan-group__name {
+    font-family: var(--font-serif);
+    font-size: clamp(1.3rem, 2.2vw, 1.9rem);
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+}
+
+.fan-group__note {
+    font-size: 0.85rem;
+    line-height: 1.7;
+    color: var(--fg-40);
+}
+
+/* 右侧信息区：平台徽标 + 所在地 */
+.fan-group__meta {
+    grid-area: meta;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    min-width: 0;
+}
+
+.fan-group__platform {
+    padding: 0.15rem 0.5rem;
+    font-family: var(--font-sans);
+    font-size: 0.65rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--fg-60);
+    border: 1px solid var(--fg-20);
+}
+
+/* 群组卡片上的所在地标签（国家 · 地区） */
+.fan-group__place {
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    color: var(--fg-60);
+    white-space: nowrap;
+}
+
+/* 群组管理员：整行铺开，长名换行显示、不截断 */
+.fan-group__admin {
+    grid-area: admin;
+    min-width: 0;
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    line-height: 1.6;
+    color: var(--fg-60);
+    overflow-wrap: anywhere;
+}
+
+/* 管理员个人主页链接（卡片可能整体是 <a>，故此处用 span + 事件委托，避免锚点嵌套） */
+.fan-group__admin-link {
+    color: var(--fg);
+    cursor: pointer;
+    border-bottom: 1px solid var(--fg-20);
+    transition: border-color var(--dur-fast) ease, color var(--dur-fast) ease;
+}
+.fan-group__admin-link:hover {
+    border-bottom-color: var(--fg);
+}
+
+.fan-group__arrow {
+    grid-area: arrow;
+    justify-self: end;
+    font-size: 1.25rem;
+    line-height: 1;
+    color: var(--fg-40);
+    transition: transform var(--dur-fast) ease, color var(--dur-fast) ease;
+}
+
+a.fan-group:hover .fan-group__arrow {
+    color: var(--fg);
+    transform: translate(3px, -3px);
+}
+
+@media (max-width: 640px) {
+    .fan-groups__list { gap: 0.75rem; }
+    .fan-groups__desc { margin-top: -1.25rem; margin-bottom: 1.75rem; font-size: 0.85rem; }
+    /* 窄屏：主区独占一行，平台/地区另起一行自动换行，管理员行不变 */
+    .fan-group {
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+            "main arrow"
+            "meta meta";
+        align-items: center;
+        row-gap: 0.85rem;
+        column-gap: 1rem;
+        min-height: 0;
+        padding: 1.4rem 1.5rem;
+    }
+    .fan-group--has-admin {
+        grid-template-areas:
+            "main arrow"
+            "meta meta"
+            "admin admin";
+    }
+    .fan-group__meta { flex-wrap: wrap; gap: 0.6rem 1rem; }
+}
+
+/* 群组页：国家 / 地区两级点击筛选 */
+.fan-filter {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1.2rem;
+    border-bottom: 1px solid var(--fg-10);
+}
+.fan-filter__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.35rem 1.4rem;
+}
+.fan-filter__label {
+    font-family: var(--font-sans);
+    font-size: 0.7rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--fg-40);
+}
+.fan-filter__link {
+    position: relative;
+    padding: 0.4rem 0;
+    background: none;
+    border: 0;
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    letter-spacing: 0.2em;
+    color: var(--fg-40);
+    cursor: pointer;
+    transition: color var(--dur-fast) ease;
+}
+.fan-filter__link::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 1px;
+    background: currentColor;
+    transform: scaleX(0);
+    transform-origin: right center;
+    transition: transform var(--dur-fast) var(--ease-standard);
+}
+.fan-filter__link:hover { color: var(--fg-60); }
+.fan-filter__link:hover::after,
+.fan-filter__link.active::after { transform: scaleX(1); }
+.fan-filter__link.active { color: var(--fg); }
+/* 第二层（地区）：字号略小、与第一层拉开层级 */
+.fan-filter__row--region .fan-filter__link { font-size: 0.7rem; letter-spacing: 0.16em; }
+
+.fan-groups__count {
+    margin: 0 0 1.25rem;
+    font-size: 0.78rem;
+    color: var(--fg-40);
+}
+

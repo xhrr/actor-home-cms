@@ -1147,6 +1147,15 @@ a { text-decoration: none; color: inherit; }
     display: none;
 }
 
+/* 媒体库分页计数（分页条上方的小字） */
+.media-count {
+    margin: 1.25rem 0 0;
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+}
+#media-pager .pager { padding-top: 0.5rem; }
+
 /* 写真集数字分页（条目可达数百，分页渲染避免一次建上千个表单字段） */
 .pager {
     display: flex;

@@ -3,10 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>写真</title>
+    <title data-i18n="title.gallery">写真</title>
     <meta name="description" content="演员写真集">
     <link rel="stylesheet" href="/css/editorial.css">
     <script src="/js/config.js"></script>
+    <script src="/js/i18n.js"></script>
     <script src="/js/cms.js"></script>
     <script src="/js/vendor/lenis.min.js"></script>
     <script src="/js/vendor/gsap.min.js"></script>
@@ -15,7 +16,7 @@
 <body>
     <nav class="nav" id="nav">
         <a href="/" class="nav__logo" id="navLogo"></a>
-        <button class="nav__toggle" id="navToggle" aria-label="菜单" aria-expanded="false">
+        <button class="nav__toggle" id="navToggle" aria-label="菜单" data-i18n-aria="nav.menu" aria-expanded="false">
             <span></span><span></span><span></span>
         </button>
         <ul class="nav__links" id="navLinks"></ul>
@@ -27,10 +28,10 @@
     </main>
 
     <div id="lightbox" class="lightbox" style="display:none" role="dialog" aria-modal="true">
-        <button class="lightbox__close" id="lightbox-close" aria-label="关闭">&times;</button>
-        <button class="lightbox__nav lightbox__nav--prev" id="lightbox-prev" aria-label="上一张">&#10094;</button>
-        <button class="lightbox__nav lightbox__nav--next" id="lightbox-next" aria-label="下一张">&#10095;</button>
-        <img id="lightbox-img" src="" alt="放大预览">
+        <button class="lightbox__close" id="lightbox-close" aria-label="关闭" data-i18n-aria="common.close">&times;</button>
+        <button class="lightbox__nav lightbox__nav--prev" id="lightbox-prev" aria-label="上一张" data-i18n-aria="common.prev">&#10094;</button>
+        <button class="lightbox__nav lightbox__nav--next" id="lightbox-next" aria-label="下一张" data-i18n-aria="common.next">&#10095;</button>
+        <img id="lightbox-img" src="" alt="放大预览" data-i18n-alt="common.zoomPreview">
         <span class="lightbox__counter" id="lightbox-counter"></span>
     </div>
 

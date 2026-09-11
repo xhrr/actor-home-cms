@@ -13,6 +13,9 @@
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 
+    // 运行时国际化（i18n.js 同步加载在前），缺失时回退中文默认值
+    const T = (window.I18N && window.I18N.t) || ((key, fallback) => (fallback == null ? key : fallback));
+
     const NICK_KEY = 'comment-nickname';
     const state = { pageKey: null, replyTo: null, replyName: '' };
 
@@ -50,10 +53,10 @@
     function headHtml(c, ref) {
         return `
             <div class="comment__head">
-                <span class="comment__name">${esc(c.n || '马铃薯')}</span>
+                <span class="comment__name">${esc(c.n || T('comments.defaultName', '马铃薯'))}</span>
                 ${ref ? `<span class="comment__ref">${esc(ref)}</span>` : ''}
                 <span class="comment__date">${fmtDate(c.d)}</span>
-                <button type="button" class="comment__reply" data-reply="${esc(c.id)}" data-reply-name="${esc(c.n || '马铃薯')}">回复</button>
+                <button type="button" class="comment__reply" data-reply="${esc(c.id)}" data-reply-name="${esc(c.n || T('comments.defaultName', '马铃薯'))}">${esc(T('comments.replyBtn', '回复'))}</button>
             </div>`;
     }
 
@@ -73,7 +76,7 @@
                     <ul class="comment__replies">
                         ${reps.map(r => {
                             const parent = byId[r.replyTo];
-                            const ref = parent && parent.id !== c.id ? `回复 @${parent.n || '匿名'}` : '';
+                            const ref = parent && parent.id !== c.id ? (T('comments.replyPrefix', '回复 @') + (parent.n || T('comments.anonymous', '匿名'))) : '';
                             return `
                             <li class="comment comment--reply">
                                 <span class="comment__num">${pad2(++num)}</span>
@@ -93,17 +96,17 @@
         <section class="comments" id="commentsSection">
             <div class="section__head">
                 <p class="section__label">COMMENTS</p>
-                <h2 class="section__title">留言<sup class="comments__count">${list.length}</sup></h2>
+                <h2 class="section__title">${esc(T('comments.title', '留言'))}<sup class="comments__count">${list.length}</sup></h2>
             </div>
-            <ul class="comments__list">${roots.map(thread).join('') || '<li class="comments__empty">还没有留言，来写下第一条吧</li>'}</ul>
+            <ul class="comments__list">${roots.map(thread).join('') || `<li class="comments__empty">${esc(T('comments.empty', '还没有留言，来写下第一条吧'))}</li>`}</ul>
             <form class="comments__form" id="commentsForm">
                 <div class="comments__form-row">
-                    <input type="text" class="comments__input" id="commentNickname" placeholder="昵称（选填，默认马铃薯）" maxlength="20" autocomplete="off" value="${esc(nick)}">
-                    <span class="comments__replying" id="commentsReplying" style="display:none" title="点击取消回复"></span>
-                    <button type="submit" class="comments__submit">发 布</button>
+                    <input type="text" class="comments__input" id="commentNickname" placeholder="${esc(T('comments.nickPlaceholder', '昵称（选填，默认马铃薯）'))}" maxlength="20" autocomplete="off" value="${esc(nick)}">
+                    <span class="comments__replying" id="commentsReplying" style="display:none" title="${esc(T('comments.cancelReply', '点击取消回复'))}"></span>
+                    <button type="submit" class="comments__submit">${esc(T('comments.submit', '发 布'))}</button>
                 </div>
-                <textarea class="comments__input comments__textarea" id="commentContent" rows="3" maxlength="500" placeholder="写下你的留言…"></textarea>
-                <p class="comments__form-hint">留言经整理后展示，请友善发言</p>
+                <textarea class="comments__input comments__textarea" id="commentContent" rows="3" maxlength="500" placeholder="${esc(T('comments.textareaPlaceholder', '写下你的留言…'))}"></textarea>
+                <p class="comments__form-hint">${esc(T('comments.hint', '留言经整理后展示，请友善发言'))}</p>
             </form>
         </section>`;
     }
@@ -116,12 +119,12 @@
         const chip = section.querySelector('#commentsReplying');
         const ta = section.querySelector('#commentContent');
         if (state.replyTo) {
-            chip.textContent = '回复 @' + state.replyName + ' ×';
+            chip.textContent = T('comments.replyPrefix', '回复 @') + state.replyName + ' ×';
             chip.style.display = '';
-            if (ta) { ta.placeholder = '回复 @' + state.replyName + '：'; ta.focus(); }
+            if (ta) { ta.placeholder = T('comments.replyPrefix', '回复 @') + state.replyName + '：'; ta.focus(); }
         } else {
             chip.style.display = 'none';
-            if (ta) ta.placeholder = '写下你的留言…';
+            if (ta) ta.placeholder = T('comments.textareaPlaceholder', '写下你的留言…');
         }
     }
 
@@ -147,7 +150,7 @@
         const ta = section.querySelector('#commentContent');
         const hint = section.querySelector('.comments__form-hint');
         const content = ta.value.trim();
-        if (!content) { hint.textContent = '写点什么再发布吧'; return; }
+        if (!content) { hint.textContent = T('comments.needContent', '写点什么再发布吧'); return; }
         const payload = {
             page: state.pageKey,
             nickname: nickEl.value.trim(),
@@ -168,7 +171,7 @@
                 // 公共站待审通道（comment-gateway）：不落本地展示，等审批固化后的导出上线
                 state.replyTo = null; state.replyName = '';
                 ta.value = '';
-                const msg = j.message || '留言已提交，审核通过后展示';
+                const msg = j.message || T('comments.pending', '留言已提交，审核通过后展示');
                 hint.textContent = msg;
                 showToast(msg);
                 return;
@@ -178,10 +181,10 @@
             list.push(j.comment);
             state.replyTo = null; state.replyName = '';
             rerender();
-            showToast('留言已发布');
+            showToast(T('comments.published', '留言已发布'));
         }).catch(() => {
-            hint.textContent = '评论提交暂未开放，敬请期待';
-            showToast('评论提交暂未开放，敬请期待');
+            hint.textContent = T('comments.closed', '评论提交暂未开放，敬请期待');
+            showToast(T('comments.closed', '评论提交暂未开放，敬请期待'));
         });
     }
 

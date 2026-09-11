@@ -3,10 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>投稿</title>
+    <title data-i18n="title.contribute">投稿</title>
     <meta name="robots" content="noindex">
     <link rel="stylesheet" href="/css/editorial.css">
     <script src="/js/config.js"></script>
+    <script src="/js/i18n.js"></script>
     <script src="/js/cms.js"></script>
     <script src="/js/vendor/lenis.min.js"></script>
     <script src="/js/vendor/gsap.min.js"></script>
@@ -212,7 +213,7 @@
 <body>
     <nav class="nav" id="nav">
         <a href="/" class="nav__logo" id="navLogo"></a>
-        <button class="nav__toggle" id="navToggle" aria-label="菜单" aria-expanded="false">
+        <button class="nav__toggle" id="navToggle" aria-label="菜单" data-i18n-aria="nav.menu" aria-expanded="false">
             <span></span><span></span><span></span>
         </button>
         <ul class="nav__links" id="navLinks"></ul>
@@ -221,36 +222,36 @@
     <main class="section" style="padding-top:7rem">
         <div class="contrib-page">
             <p class="contrib-page__eyebrow">CONTRIBUTE</p>
-            <h1 class="contrib-page__title">投稿</h1>
+            <h1 class="contrib-page__title" data-i18n="contrib.pageTitle"></h1>
 
             <div class="contrib-type" id="contribType">
-                <button type="button" class="contrib-type__btn active" data-type="album">图 集</button>
-                <button type="button" class="contrib-type__btn" data-type="works">作 品</button>
-                <button type="button" class="contrib-type__btn" data-type="append">补 充</button>
+                <button type="button" class="contrib-type__btn active" data-type="album" data-i18n="contrib.typeAlbum"></button>
+                <button type="button" class="contrib-type__btn" data-type="works" data-i18n="contrib.typeWorks"></button>
+                <button type="button" class="contrib-type__btn" data-type="append" data-i18n="contrib.typeAppend"></button>
             </div>
 
             <form id="contribForm" novalidate>
                 <div id="fieldsAppend" style="display:none">
                     <div class="contrib-field">
-                        <label>目标 ID *</label>
-                        <input type="text" id="f-targetId" maxlength="300" placeholder="粘贴详情页链接，或填 a-xxxx / w-xxxx">
-                        <p class="contrib-field__help">要往哪个已有图集 / 作品里补图？打开该内容的详情页，复制地址栏链接粘贴到此处即可（也可只填 ID 部分）。</p>
+                        <label data-i18n="contrib.targetIdLabel"></label>
+                        <input type="text" id="f-targetId" maxlength="300" placeholder="粘贴详情页链接，或填 a-xxxx / w-xxxx" data-i18n-placeholder="contrib.targetIdPlaceholder">
+                        <p class="contrib-field__help" data-i18n="contrib.targetIdHelp"></p>
                     </div>
                 </div>
                 <div id="fieldsAlbum">
                     <div class="contrib-field">
-                        <label>发帖日期 *</label>
+                        <label data-i18n="contrib.dateLabel"></label>
                         <input type="date" id="f-date">
                     </div>
                     <div class="contrib-field">
-                        <label>作者 / 摄影师 *</label>
-                        <input type="text" id="f-author" maxlength="40" placeholder="摄影师或内容创作者">
+                        <label data-i18n="contrib.authorLabel"></label>
+                        <input type="text" id="f-author" maxlength="40" placeholder="摄影师或内容创作者" data-i18n-placeholder="contrib.authorPlaceholder">
                     </div>
                 </div>
                 <div id="fieldsWorks" style="display:none">
                     <div class="contrib-row">
                         <div class="contrib-field">
-                            <label>分类 *</label>
+                            <label data-i18n="contrib.categoryLabel"></label>
                             <select id="f-category">
                                 <option value="">未分类</option>
                                 <option>影游</option>
@@ -260,22 +261,22 @@
                             </select>
                         </div>
                         <div class="contrib-field">
-                            <label>年份 *</label>
-                            <input type="text" id="f-year" maxlength="10" placeholder="2026 或 2026-03-01">
+                            <label data-i18n="contrib.yearLabel"></label>
+                            <input type="text" id="f-year" maxlength="10" placeholder="2026 或 2026-03-01" data-i18n-placeholder="contrib.yearPlaceholder">
                         </div>
                     </div>
                     <div class="contrib-row">
                         <div class="contrib-field">
-                            <label>导演</label>
+                            <label data-i18n="contrib.directorLabel"></label>
                             <input type="text" id="f-director" maxlength="40">
                         </div>
                         <div class="contrib-field">
-                            <label>饰演角色 *</label>
+                            <label data-i18n="contrib.roleLabel"></label>
                             <input type="text" id="f-role" maxlength="40">
                         </div>
                     </div>
                     <div class="contrib-field">
-                        <label>简介 *</label>
+                        <label data-i18n="contrib.synopsisLabel"></label>
                         <textarea id="f-synopsis" maxlength="300" rows="3"></textarea>
                     </div>
                 </div>
@@ -290,19 +291,19 @@
                 </div>
 
                 <div class="contrib-field">
-                    <label id="imgLabel">图片 *（最多 30 张，自动压缩为 webp）</label>
-                    <div class="contrib-pick" id="contribPick">点击选择图片（可多选），或拖拽文件 / 文件夹到此处</div>
+                    <label id="imgLabel" data-i18n="contrib.imgAlbum"></label>
+                    <div class="contrib-pick" id="contribPick" data-i18n="contrib.pickHint"></div>
                     <input type="file" id="contribFiles" accept="image/*" multiple style="display:none">
                     <div class="contrib-thumbs" id="contribThumbs"></div>
-                    <p class="contrib-field__help">点击图片可设为封面（作品为海报）；上传到站内图床，格式自动转为 webp。</p>
+                    <p class="contrib-field__help" data-i18n="contrib.thumbHelp"></p>
                 </div>
 
-                <button type="submit" class="contrib-submit" id="contribSubmit">提 交 投 稿</button>
+                <button type="submit" class="contrib-submit" id="contribSubmit" data-i18n="contrib.submit">提 交 投 稿</button>
                 <div class="contrib-bar" id="contribBar"><div class="contrib-bar__fill" id="contribBarFill"></div></div>
                 <p class="contrib-msg" id="contribMsg"></p>
             </form>
 
-            <p class="contrib-note">提交后经人工审核上线；请确认图片有权分享。投稿内容将进入待审队列，不会立即展示。选「补充」可为已有图集 / 作品追加图片：打开该内容详情页，复制链接填入「目标 ID」即可。</p>
+            <p class="contrib-note" data-i18n="contrib.note"></p>
         </div>
     </main>
 
