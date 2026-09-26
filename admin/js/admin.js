@@ -325,10 +325,10 @@
     function renderSocial() {
         const links = (config.social && config.social.links) || [];
         $('#social-list').innerHTML = links.map((link, i) => `
-            <div class="list-item" data-index="${i}">
-                <input type="text" data-social-name="${i}" value="${window.AdminCMS.esc(link.name || '')}" placeholder="名称">
-                <input type="text" data-social-url="${i}" value="${window.AdminCMS.esc(link.url || '')}" placeholder="链接">
-                <button class="btn--danger" data-remove-social="${i}">×</button>
+            <div class="list-item social-item" data-index="${i}">
+                <input type="text" data-social-name="${i}" value="${window.AdminCMS.esc(link.name || '')}" placeholder="名称（如：微博）">
+                <input type="text" data-social-url="${i}" value="${window.AdminCMS.esc(link.url || '')}" placeholder="完整链接（https://…）">
+                <button class="btn--danger" data-remove-social="${i}" title="删除这条链接">×</button>
             </div>
         `).join('');
     }
@@ -761,19 +761,41 @@
         // 重渲染前记住展开状态（启用/停用插件后不收起已展开的卡片）
         const expandedBefore = new Set(Array.from(container.querySelectorAll('.plugin-card:not(.is-collapsed)')).map(c => c.dataset.plugin));
 
-        container.innerHTML = pluginList.map(plugin => {
+        // 管理台形态：分类页签筛选 + 双列栅格 + 紧凑卡片（开关一体）
+        const CATS = [
+            ['all', '全部'],
+            ['sync', '社交同步'],
+            ['workflow', '工作流'],
+            ['gateway', '公共站网关'],
+            ['infra', '基础设施'],
+            ['display', '前台展示'],
+            ['other', '其他'],
+        ];
+        const catOf = p => (p.manifest && p.manifest.category) || 'other';
+        if (!window.__plugTab) window.__plugTab = 'all';
+        const activeTab = window.__plugTab;
+        const visible = activeTab === 'all' ? pluginList : pluginList.filter(p => catOf(p) === activeTab);
+        const counts = cat => cat === 'all'
+            ? pluginList.length
+            : pluginList.filter(p => catOf(p) === cat).length;
+
+        const renderCard = (plugin) => {
             const isEnabled = enabled.includes(plugin.name);
             const panel = panels[plugin.name];
             const data = (config.plugins && config.plugins.data && config.plugins.data[plugin.name]) || {};
-            // 带面板的插件卡片可折叠：默认收起，点击标题行展开配置
             const foldable = !!(panel && isEnabled && !DEDICATED_PLUGIN_NAMES.includes(plugin.name));
             const folded = foldable && !expandedBefore.has(plugin.name);
+            const catLabel = (CATS.find(c => c[0] === catOf(plugin)) || ['', ''])[1];
             return `
-                <div class="plugin-card${folded ? ' is-collapsed' : ''}" data-plugin="${plugin.name}">
+                <div class="plugin-card${folded ? ' is-collapsed' : ''}${isEnabled ? ' is-on' : ''}" data-plugin="${plugin.name}">
                     <div class="plugin-card__header${foldable ? ' is-toggle' : ''}"${foldable ? ' data-toggle-item title="点击展开/收起配置"' : ''}>
-                        <h4 class="plugin-card__title">${window.AdminCMS.esc(plugin.manifest.label || plugin.name)} <small>${window.AdminCMS.esc(plugin.manifest.version || '')}</small></h4>
-                        ${foldable ? '<span class="collapse-chevron">▾</span>' : ''}
-                        <button class="btn btn--sm" data-toggle-plugin="${plugin.name}">${isEnabled ? '停用' : '启用'}</button>
+                        <span class="plugin-card__dot"></span>
+                        <h4 class="plugin-card__title">${window.AdminCMS.esc(plugin.manifest.label || plugin.name)}
+                            <small>v${window.AdminCMS.esc(plugin.manifest.version || '')} · ${catLabel}</small></h4>
+                        <label class="plugin-switch" data-toggle-plugin="${plugin.name}" title="${isEnabled ? '点击停用' : '点击启用'}">
+                            <input type="checkbox" ${isEnabled ? 'checked' : ''} tabindex="-1">
+                            <span class="track"></span>
+                        </label>
                     </div>
                     ${foldable ? '<div class="plugin-card__body">' : ''}
                     <p class="plugin-card__desc">${window.AdminCMS.esc(plugin.manifest.description || '')}</p>
@@ -787,11 +809,31 @@
                         </div>
                     ` : ''}
                     ${isEnabled && DEDICATED_PLUGIN_NAMES.includes(plugin.name) ? `<p class="plugin-card__desc">该插件内容请在左侧「${plugin.manifest.label || ''}」分区编辑。</p>` : ''}
+                    ${!isEnabled ? `<p class="plugin-card__desc muted">已停用：打开右上开关后可配置。</p>` : ''}
                     ${isEnabled && !panel && !DEDICATED_PLUGIN_NAMES.includes(plugin.name) ? `<p class="plugin-card__desc">该插件没有提供后台面板，仍可通过 JSON 数据文件管理。</p>` : ''}
                     ${foldable ? '</div>' : ''}
                 </div>
             `;
-        }).join('');
+        };
+
+        container.innerHTML = `
+            <div class="plugin-tabs">
+                ${CATS.filter(([cat]) => cat === 'all' || counts(cat) > 0).map(([cat, label]) => `
+                    <button class="plugin-tab${cat === activeTab ? ' is-active' : ''}" data-plug-tab="${cat}">
+                        ${label}<em>${counts(cat)}</em>
+                    </button>`).join('')}
+            </div>
+            <div class="plugin-grid">
+                ${visible.map(renderCard).join('') || '<p class="muted" style="padding:1rem">该分类下暂无插件</p>'}
+            </div>
+        `;
+
+        container.querySelectorAll('[data-plug-tab]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                window.__plugTab = btn.dataset.plugTab;
+                renderPlugins();
+            });
+        });
 
         // 绑定插件面板内部事件
         pluginList.forEach(plugin => {
@@ -1031,9 +1073,13 @@
         config.about.role = $('#about-role').value;
         config.about.image = $('#about-image').value;
         config.about.bio = $('#about-bio').value.split('\n').filter(s => s.trim());
-        config.about.stats = $('#about-stats').value.split('\n').filter(s => s.trim()).map(line => {
+        // 重建 stats 时保留上一次的同位额外字段（label_i18n 等翻译字段），
+        // 否则后台每保存一次就冲掉一次多语言（与事故 32 同类：重建丢弃未展示字段）
+        const prevStats = Array.isArray(config.about.stats) ? config.about.stats : [];
+        config.about.stats = $('#about-stats').value.split('\n').filter(s => s.trim()).map((line, i) => {
             const [label, value] = line.split('=').map(s => s.trim());
-            return { label: label || '', value: value || '' };
+            const prev = prevStats[i] || {};
+            return Object.assign({}, prev, { label: label || '', value: value || '' });
         });
     }
 

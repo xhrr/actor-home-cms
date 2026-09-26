@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="title.moments">拾光</title>
+    <meta name="description" content="拾光 · 全部照片按时间浏览">
+    <link rel="stylesheet" href="/css/editorial.css">
+    <link rel="stylesheet" href="/css/newgallery.css">
+    <script src="/js/config.js"></script>
+    <script src="/js/i18n.js"></script>
+    <script src="/js/cms.js"></script>
+</head>
+<body>
+    <nav class="nav" id="nav">
+        <a href="/" class="nav__logo" id="navLogo"></a>
+        <button class="nav__toggle" id="navToggle" aria-label="菜单" data-i18n-aria="nav.menu" aria-expanded="false">
+            <span></span><span></span><span></span>
+        </button>
+        <ul class="nav__links" id="navLinks"></ul>
+    </nav>
+
+    <main class="ng-page">
+        <header class="ng-head">
+            <h1 class="ng-head__title"><span data-i18n="moments.title">拾光</span><small class="ng-head__sub">MOMENTS</small></h1>
+        </header>
+        <nav class="ng-tabs" id="ngTabs" aria-label="年份筛选"></nav>
+        <div class="ng-masonry" id="ngGrid" aria-live="polite"></div>
+    </main>
+
+    <div id="lightbox" class="lightbox" style="display:none" role="dialog" aria-modal="true">
+        <img class="ng-lightbox__bg" id="ngLbBg" alt="" aria-hidden="true">
+        <button class="lightbox__close" id="ngLbClose" aria-label="关闭" data-i18n-aria="common.close">&times;</button>
+        <button class="lightbox__nav lightbox__nav--prev" id="ngLbPrev" aria-label="上一张" data-i18n-aria="common.prev">&#10094;</button>
+        <button class="lightbox__nav lightbox__nav--next" id="ngLbNext" aria-label="下一张" data-i18n-aria="common.next">&#10095;</button>
+        <figure class="ng-lightbox__figure">
+            <img id="ngLbImg" src="" alt="放大预览" data-i18n-alt="common.zoomPreview">
+            <figcaption class="ng-lightbox__cap"><span id="ngLbTitle"></span><span id="ngLbMeta"></span></figcaption>
+        </figure>
+        <span class="lightbox__counter" id="ngLbCounter"></span>
+    </div>
+
+    <script src="/js/newgallery.js"></script>
+</body>
+</html>

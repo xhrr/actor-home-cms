@@ -2,11 +2,13 @@
     'use strict';
     if (!window.AdminCMS) return;
 
-    window.AdminCMS.registerPluginPanel('ai-review', {
+    // bind() 由后台以普通函数调用（无 this），收集/保存统一走 panel.collect()
+    const panel = {
         label: 'AI 内容审核',
         render: function (data) {
             data = data || {};
             const auto = data.autoApprove === true;
+            const mailOn = data.mailEnabled === true;
             return `
                 <div class="form-group">
                     <label>审核模式</label>
@@ -63,9 +65,58 @@
                 <div class="form-group">
                     <label>MiMo API Key</label>
                     <input type="password" id="ar-key" value="${window.AdminCMS.esc(data.llmKey || '')}" placeholder="留空继承「倩一波日常」的 Key">
+                    <div style="margin-top:.5rem;display:flex;align-items:center;gap:.6rem">
+                        <button class="btn btn--sm" id="ar-ai-test">测试 AI 连接</button>
+                        <span id="ar-ai-status" style="font-size:0.82rem"></span>
+                    </div>
+                </div>
+                <hr style="border:none;border-top:1px solid rgba(128,128,128,.25);margin:1rem 0">
+                <div class="form-group">
+                    <label>邮件提醒</label>
+                    <label class="toggle-label">
+                        <input type="checkbox" id="ar-mail-on" ${mailOn ? 'checked' : ''}> 开启邮件提醒（审核完成且有内容需要人工处理时发汇总；整轮失败也会提醒，60 分钟内不重复）
+                    </label>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>SMTP 服务器</label>
+                        <input type="text" id="ar-mail-host" value="${window.AdminCMS.esc(data.mailHost || '')}" placeholder="smtp.qq.com">
+                    </div>
+                    <div class="form-group">
+                        <label>端口</label>
+                        <input type="number" id="ar-mail-port" value="${window.AdminCMS.esc(data.mailPort != null ? data.mailPort : 465)}" placeholder="465">
+                        <p class="form-help">465 = SSL；587/25 自动尝试 STARTTLS。</p>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>SMTP 账号</label>
+                        <input type="text" id="ar-mail-user" value="${window.AdminCMS.esc(data.mailUser || '')}" placeholder="完整邮箱地址">
+                    </div>
+                    <div class="form-group">
+                        <label>SMTP 授权码</label>
+                        <input type="password" id="ar-mail-pass" value="${window.AdminCMS.esc(data.mailPass || '')}" placeholder="邮箱设置里生成的授权码，不是登录密码">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>发件人（可选）</label>
+                        <input type="text" id="ar-mail-from" value="${window.AdminCMS.esc(data.mailFrom || '')}" placeholder="留空 = SMTP 账号">
+                    </div>
+                    <div class="form-group">
+                        <label>收件人</label>
+                        <input type="text" id="ar-mail-to" value="${window.AdminCMS.esc(data.mailTo || '')}" placeholder="多个用逗号分隔">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="toggle-label">
+                        <input type="checkbox" id="ar-mail-every" ${data.mailOnEveryRun === true ? 'checked' : ''}> 全部通过也发摘要（默认只在需要人工处理时发）
+                    </label>
+                    <input type="text" id="ar-mail-reviewurl" style="margin-top:.5rem" value="${window.AdminCMS.esc(data.mailReviewUrl || '')}" placeholder="站内复审页地址（可选），如 http://NAS-IP:3123/plugins/ai-review/index.html">
                 </div>
                 <div class="form-group">
                     <button class="btn btn--primary btn--sm" id="ar-run">立即审核一轮</button>
+                    <button class="btn btn--ghost btn--sm" id="ar-mail-test">发送测试邮件</button>
                     <span id="ar-status" style="margin-left:0.75rem;font-size:0.85rem"></span>
                 </div>
                 <div class="form-group">
@@ -86,11 +137,21 @@
                 llmModel: g('ar-model').trim(),
                 llmBaseUrl: g('ar-base').trim(),
                 llmKey: g('ar-key').trim(),
-                autoApprove: !!(document.getElementById('ar-auto') || {}).checked
+                autoApprove: !!(document.getElementById('ar-auto') || {}).checked,
+                mailEnabled: !!(document.getElementById('ar-mail-on') || {}).checked,
+                mailHost: g('ar-mail-host').trim(),
+                mailPort: parseInt(g('ar-mail-port'), 10) || 465,
+                mailUser: g('ar-mail-user').trim(),
+                mailPass: g('ar-mail-pass').trim(),
+                mailFrom: g('ar-mail-from').trim(),
+                mailTo: g('ar-mail-to').trim(),
+                mailOnEveryRun: !!(document.getElementById('ar-mail-every') || {}).checked,
+                mailReviewUrl: g('ar-mail-reviewurl').trim()
             };
         },
         bind: function () {
             const btn = document.getElementById('ar-run');
+            const testBtn = document.getElementById('ar-mail-test');
             const status = document.getElementById('ar-status');
             const last = document.getElementById('ar-last');
 
@@ -105,29 +166,43 @@
             setTimeout(sync, 100);
             if (!btn) return;
 
+            // 面板保存统一走 collect()（「立即审核」与「发送测试邮件」都先保存再动作，
+            // 避免两处内联字段清单漂移——漏一个字段保存时就会被整体替换抹掉）
+            const saveData = () => fetch('/api/plugins/ai-review/data', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(panel.collect())
+            });
+
+            // AI 连接测试：先保存当前表单值再测（测的就是刚填的配置）
+            const aiBtn = document.getElementById('ar-ai-test');
+            if (aiBtn) {
+                const aiStatus = document.getElementById('ar-ai-status');
+                aiBtn.addEventListener('click', async () => {
+                    aiBtn.disabled = true;
+                    if (aiStatus) { aiStatus.textContent = '测试中…'; aiStatus.style.color = ''; }
+                    try {
+                        await saveData();
+                        const res = await fetch('/api/plugins/ai-review/ai-test', { method: 'POST' });
+                        const j = await res.json();
+                        if (!res.ok || !j.ok) throw new Error(j.error || ('http ' + res.status));
+                        if (aiStatus) {
+                            aiStatus.textContent = `✅ ${j.model}（${j.ms}ms）：${j.reply}`;
+                            aiStatus.style.color = '#28a745';
+                        }
+                    } catch (e) {
+                        if (aiStatus) { aiStatus.textContent = '❌ ' + e.message; aiStatus.style.color = '#dc3545'; }
+                    }
+                    aiBtn.disabled = false;
+                });
+            }
+
             btn.addEventListener('click', async () => {
                 btn.disabled = true;
                 status.textContent = '审核中…（多图需数十秒）';
                 status.style.color = '';
                 try {
-                    // 先保存面板配置再执行（collect 直接构造，避免依赖内部注册表）
-                    const g = id => { const el = document.getElementById(id); return el ? el.value : ''; };
-                    await fetch('/api/plugins/ai-review/data', {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            pendingLabels: g('ar-pending').trim() || 'content-pending,comment-pending',
-                            skipLabels: g('ar-skip').trim(),
-                            approvedLabel: g('ar-approved').trim() || 'approved',
-                            reviewedLabel: g('ar-reviewed').trim() || 'ai-reviewed',
-                            sampleCount: parseInt(g('ar-sample'), 10) || 3,
-                            pollInterval: parseInt(g('ar-interval'), 10) || 15,
-                            llmModel: g('ar-model').trim(),
-                            llmBaseUrl: g('ar-base').trim(),
-                            llmKey: g('ar-key').trim(),
-                            autoApprove: !!(document.getElementById('ar-auto') || {}).checked
-                        })
-                    });
+                    await saveData();
                     const res = await fetch('/api/plugins/ai-review/run', { method: 'POST' });
                     const j = await res.json();
                     if (!res.ok) throw new Error(j.error || ('http ' + res.status));
@@ -140,6 +215,28 @@
                 btn.disabled = false;
                 sync();
             });
+
+            if (testBtn) {
+                testBtn.addEventListener('click', async () => {
+                    testBtn.disabled = true;
+                    status.textContent = '发送测试邮件中…';
+                    status.style.color = '';
+                    try {
+                        await saveData();
+                        const res = await fetch('/api/plugins/ai-review/mail-test', { method: 'POST' });
+                        const j = await res.json();
+                        if (!res.ok) throw new Error(j.error || ('http ' + res.status));
+                        status.textContent = '✅ ' + (j.message || '测试邮件已发送');
+                        status.style.color = '#28a745';
+                    } catch (e) {
+                        status.textContent = '❌ ' + e.message;
+                        status.style.color = '#dc3545';
+                    }
+                    testBtn.disabled = false;
+                });
+            }
         }
-    });
+    };
+
+    window.AdminCMS.registerPluginPanel('ai-review', panel);
 })();

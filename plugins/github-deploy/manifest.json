@@ -7,5 +7,6 @@
   "server": "server.js",
   "admin": "admin.js",
   "assets": [],
-  "client": "client.js"
+  "client": "client.js",
+  "category": "workflow"
 }

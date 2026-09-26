@@ -1,0 +1,243 @@
+/* ============================================================
+   newgallery.css — 「瞬间」拍立得瀑布流（独立页面，自包含）
+   依赖 editorial.css 的导航/灯箱基座，其余全部本地作用域（ng- 前缀）。
+   性能：卡片 content-visibility 跳过屏外渲染；过渡只走 transform/box-shadow。
+   ============================================================ */
+
+.ng-page {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: calc(var(--nav-h, 64px) + 2.5rem) 1.5rem 5rem;
+}
+
+/* ---------- 头部：标题（英文小字点缀） ---------- */
+.ng-head__title {
+    font-size: clamp(1.7rem, 3.2vw, 2.4rem);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    margin: 0 0 0.4rem;
+}
+.ng-head__sub {
+    font-size: 0.72rem;
+    font-weight: 400;
+    color: #b5b1ab;
+    letter-spacing: 0.34em;
+    margin-left: 0.7rem;
+    vertical-align: 0.25em;
+}
+/* 非中文语境下标题已是 Moments，装饰小字会重复，隐藏 */
+html:not([lang="zh-CN"]) .ng-head__sub { display: none; }
+
+/* ---------- 年份筛选 ---------- */
+.ng-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1.4rem;
+    padding: 0.6rem 0 0;
+    margin-bottom: 2.6rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+}
+.ng-tab {
+    appearance: none;
+    background: none;
+    border: none;
+    padding: 0.35rem 0 0.55rem;
+    margin: 0;
+    font: inherit;
+    font-size: 0.95rem;
+    color: #888;
+    cursor: pointer;
+    position: relative;
+    transition: color 0.2s ease;
+}
+.ng-tab:hover { color: #222; }
+.ng-tab.is-active { color: #111; font-weight: 600; }
+.ng-tab.is-active::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 2px;
+    background: #111;
+}
+.ng-tab:focus-visible { outline: 2px solid #111; outline-offset: 2px; }
+
+/* ---------- 瀑布流：等宽列，按最短列追加 ---------- */
+.ng-masonry {
+    display: flex;
+    flex-wrap: wrap;        /* 哨兵（flex-basis:100%）落到列底部，避免与列并排导致永远命中 */
+    align-items: flex-start;
+    gap: 26px;
+}
+.ng-col {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 26px;
+}
+.ng-sentinel {
+    flex: 0 0 100%;
+    height: 1px;
+}
+
+/* ---------- 拍立得卡片 ---------- */
+.ng-card {
+    margin: 0;
+    background: #fff;
+    padding: 10px 10px 12px;
+    border-radius: 3px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08), 0 6px 18px rgba(0, 0, 0, 0.09);
+    transform: rotate(var(--tilt, 0deg));
+    cursor: zoom-in;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    /* 不用 content-visibility:auto——实测会把 position:fixed 的灯箱遮罩「憋」在不绘制状态
+       （DOM 开着、画面不画，用户表现为点击后页面锁死无反应），且 Safari 有卡死前科；
+       分批渲染 + lazy img 已兜住性能，这里不再需要它 */
+}
+.ng-card:hover,
+.ng-card:focus-visible {
+    transform: rotate(0deg) translateY(-5px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08), 0 16px 34px rgba(0, 0, 0, 0.16);
+    z-index: 2;
+    position: relative;
+}
+.ng-card:focus-visible { outline: 2px solid #111; outline-offset: 3px; }
+
+.ng-card__ph {
+    width: 100%;
+    aspect-ratio: 3 / 4;          /* 加载前占位：多数照片为竖图；加载后写真实比例 */
+    overflow: hidden;
+    background: #f0eeea;
+}
+.ng-card__ph img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;            /* 占位期轻微裁切；真实比例写入后即无裁切 */
+    display: block;
+}
+.ng-card__cap {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.6rem;
+    padding: 9px 2px 2px;
+    min-height: 30px;
+}
+.ng-card__title {
+    font-size: 0.8rem;
+    color: #333;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.ng-card__date {
+    font-size: 0.68rem;
+    color: #b0aca6;
+    flex: 0 0 auto;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 空态 / 错误态 ---------- */
+.ng-empty {
+    padding: 4rem 0;
+    text-align: center;
+    color: #999;
+    font-size: 0.95rem;
+}
+
+/* ---------- 灯箱（复用 editorial .lightbox 基座） ----------
+   背景 = 当前照片同图放大铺满 + 高斯模糊：卡片加载时浏览器已缓存该图，
+   模糊底零等待先出现，清晰原图在其上方渐进显示 */
+.lightbox {
+    background: rgba(15, 15, 15, 0.42); /* 原遮罩 0.88 太黑，压暗即可让模糊底透出 */
+    overflow: hidden;                    /* 裁掉模糊底外扩的毛边 */
+}
+.ng-lightbox__bg,
+.lightbox .ng-lightbox__bg {   /* 提高优先级：解开 editorial `.lightbox img` 的 90vw/90vh 限制 */
+    position: absolute;
+    max-width: none;
+    max-height: none;
+    inset: -56px;                        /* 外扩盖住 blur 在边缘的透明毛边 */
+    width: calc(100% + 112px);
+    height: calc(100% + 112px);
+    object-fit: cover;
+    filter: blur(34px) saturate(1.15) brightness(0.72);
+    pointer-events: none;                /* 点「空白（模糊区）」要能关闭：让点击穿透到 .lightbox 本体 */
+}
+.ng-lightbox__figure {
+    position: relative;   /* 压在模糊底之上；加载转圈的定位基准 */
+    margin: 0;
+    max-width: min(92vw, 1100px);
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+}
+.ng-lightbox__figure img {
+    display: block;
+    max-width: 100%;
+    max-height: calc(88vh - 56px);
+    width: auto;
+    height: auto;
+    margin: 0 auto;
+    object-fit: contain;
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.35);
+}
+.ng-lightbox__cap {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+    color: #eee;
+    font-size: 0.82rem;
+    padding: 10px 4px 0;
+}
+.ng-lightbox__cap #ngLbTitle {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+}
+.ng-lightbox__cap #ngLbMeta {
+    flex: 0 0 auto;
+    color: #aaa;
+    font-variant-numeric: tabular-nums;
+}
+
+/* 加载中：原图可达数 MB，转圈替代黑屏等待 */
+.lightbox.is-loading .ng-lightbox__figure img { visibility: hidden; }
+.lightbox.is-loading .ng-lightbox__figure::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 34px;
+    height: 34px;
+    margin: -17px 0 0 -17px;
+    border: 3px solid rgba(249, 248, 246, 0.25);
+    border-top-color: #F9F8F6;
+    border-radius: 50%;
+    animation: ng-spin 0.8s linear infinite;
+}
+@keyframes ng-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+    .lightbox.is-loading .ng-lightbox__figure::before { animation-duration: 2s; }
+}
+
+/* ---------- 响应式：列数由 JS 按容器宽决定，这里只做卡片尺寸微调 ---------- */
+@media (max-width: 768px) {
+    .ng-page { padding: calc(var(--nav-h, 64px) + 1.6rem) 1rem 4rem; }
+    .ng-masonry, .ng-col { gap: 18px; }
+    .ng-card { padding: 7px 7px 9px; }
+    .ng-card__cap { padding-top: 7px; min-height: 26px; }
+    .ng-card__title { font-size: 0.72rem; }
+}
+
+/* ---------- 减弱动效 ---------- */
+@media (prefers-reduced-motion: reduce) {
+    .ng-card { transform: none; transition: none; }
+    .ng-card:hover { transform: none; }
+}

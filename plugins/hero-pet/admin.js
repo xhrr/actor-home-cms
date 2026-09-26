@@ -62,8 +62,31 @@
                         </label>
                     </div>
                 </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="toggle-label">
+                            <input type="checkbox" id="hp-idle" ${data.idleActions !== false ? 'checked' : ''}> 待机小动作（张望 / 伸懒腰 / 打盹）
+                        </label>
+                        <label class="toggle-label">
+                            <input type="checkbox" id="hp-gaze" ${data.gazeFollow !== false ? 'checked' : ''}> 视线跟随（朝鼠标方向侧倾）
+                        </label>
+                        <label class="toggle-label">
+                            <input type="checkbox" id="hp-combo" ${data.petCombo !== false ? 'checked' : ''}> 连摸 3 次触发超级开心（心形粒子）
+                        </label>
+                        <label class="toggle-label">
+                            <input type="checkbox" id="hp-feed" ${data.feedEnabled !== false ? 'checked' : ''}> 双击投喂（切换吃东西动作）
+                        </label>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>打盹等待（秒）</label>
+                        <input type="number" id="hp-sleep" min="0" max="600" step="10" value="${window.AdminCMS.esc(String(data.sleepAfter != null ? data.sleepAfter : 60))}">
+                        <p class="form-help">无操作多少秒后趴下打盹（冒 Zzz），任意点击 / 滚动唤醒；填 0 关闭睡眠节律。</p>
+                    </div>
+                </div>
                 <div class="form-group">
-                    <p class="form-help">宠物（小博美）静默时趴在 hero 与下一板块的分界线上；点击首页空白会<b>站起来蹦蹦跳跳</b>过去，到达后重新趴下。向下滚动时跟随分界线上移并淡出；拖动松手后会缓缓落回分界线。修改后刷新首页即可看到效果；公共站需重新导出后生效。</p>
+                    <p class="form-help">宠物（小博美）静默时趴在 hero 与下一板块的分界线上；点击首页空白会<b>站起来蹦蹦跳跳</b>过去，到达后重新趴下。向下滚动时跟随分界线上移并淡出；拖动松手后会缓缓落回分界线。闲置时会自己张望 / 伸懒腰，摸它 3 次会<b>超级开心</b>（连跳 + 心形粒子）。修改后刷新首页即可看到效果；公共站需重新导出后生效。</p>
                 </div>
             `;
         },
@@ -83,7 +106,12 @@
                 clickMove: document.getElementById('hp-clickmove') ? document.getElementById('hp-clickmove').checked : true,
                 draggable: document.getElementById('hp-draggable') ? document.getElementById('hp-draggable').checked : true,
                 fallDuration: num("hp-fall", 1800),
-                startSide: side ? side.value : 'right'
+                startSide: side ? side.value : 'right',
+                idleActions: document.getElementById('hp-idle') ? document.getElementById('hp-idle').checked : true,
+                gazeFollow: document.getElementById('hp-gaze') ? document.getElementById('hp-gaze').checked : true,
+                petCombo: document.getElementById('hp-combo') ? document.getElementById('hp-combo').checked : true,
+                feedEnabled: document.getElementById('hp-feed') ? document.getElementById('hp-feed').checked : true,
+                sleepAfter: num('hp-sleep', 60)
             };
         }
     });

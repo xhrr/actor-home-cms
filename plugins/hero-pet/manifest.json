@@ -8,5 +8,8 @@
   "server": "server.js",
   "admin": "admin.js",
   "inject": true,
-  "assets": ["assets/"]
+  "assets": [
+    "assets/"
+  ],
+  "category": "display"
 }

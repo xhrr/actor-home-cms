@@ -8,11 +8,13 @@
  * 设计要点：
  * - 只「放行」不「拒绝」：AI 判定不通过时不自动关闭/删除，避免误判丢内容
  * - 多图抽查：首图必审 + 其余随机抽样（可配置张数），控制耗时与 token 成本
+ * - 图片本地预取转 base64 直传：MiMo 服务端下载公网图床不稳定，不依赖其下载器
  * - 凭证继承 weibo-watch 的 MiMo 配置（llmBaseUrl/llmKey/llmModel），无需重复配置
  */
 const fs = require('fs');
 const path = require('path');
 const core = require('../../lib/core');
+const mailer = require('./mailer');
 
 /* ---------------- 审核历史（独立文件，不随面板保存被覆盖） ----------------
    config.plugins.data['ai-review'] 存的是配置；通用 PUT /api/plugins/:name/data 是整体替换，
@@ -63,7 +65,17 @@ const DEFAULTS = {
     pollInterval: 15,        // 轮询间隔（分钟）
     llmBaseUrl: '',
     llmKey: '',
-    llmModel: ''
+    llmModel: '',
+    // ---- 邮件提醒（零依赖 SMTP，见 mailer.js）----
+    mailEnabled: false,      // 总开关
+    mailHost: '',            // SMTP 服务器（如 smtp.qq.com）
+    mailPort: 465,           // 465 = 隐式 TLS；587/25 自动尝试 STARTTLS
+    mailUser: '',            // SMTP 账号（一般是完整邮箱地址）
+    mailPass: '',            // SMTP 授权码（不是登录密码）
+    mailFrom: '',            // 发件人；留空用 mailUser
+    mailTo: '',              // 收件人，逗号分隔可多个
+    mailOnEveryRun: false,   // 全部通过也发摘要（默认只在需要人工处理时发）
+    mailReviewUrl: ''        // 可选：站内复审页地址（如 http://NAS-IP:3123/plugins/ai-review/index.html），填了会附在邮件里
 };
 
 const PROMPT = `你是应援站的内容审核员。站点收录艺人写真、影视剧照、粉丝二创，属于正常的娱乐内容。请审核给定的投稿文本与图片。
@@ -105,6 +117,22 @@ function tokenOf() {
     const config = core.readConfig();
     const data = (config.plugins && config.plugins.data) || {};
     return String((data['github-issues'] && data['github-issues'].token) || '').trim();
+}
+
+/** 邮件提醒配置：DEFAULTS + 面板数据归一化 */
+function mailConfig(ctx) {
+    const c = cfg(ctx);
+    return {
+        enabled: c.mailEnabled === true,
+        host: String(c.mailHost || '').trim(),
+        port: parseInt(c.mailPort, 10) || 465,
+        user: String(c.mailUser || '').trim(),
+        pass: String(c.mailPass || '').trim(),
+        from: String(c.mailFrom || '').trim() || String(c.mailUser || '').trim(),
+        to: String(c.mailTo || '').split(/[,;\s]+/).map(s => s.trim()).filter(Boolean),
+        onEveryRun: c.mailOnEveryRun === true,
+        reviewUrl: String(c.mailReviewUrl || '').trim()
+    };
 }
 
 async function gh(url, token, options = {}) {
@@ -179,13 +207,40 @@ function parseVerdict(text) {
     };
 }
 
+/** 本地预取图片并转 base64 data URL。MiMo 服务端下载公网图片不稳定（2026-09 起对
+ *  Cloudflare 代理的 img.sglxq.cn 实测 100% 下载失败，报 400 "failed to download
+ *  or process media content"），而官方支持 base64 直传（单张 ≤50MB，支持
+ *  jpg/png/webp/gif/bmp），故本地取图绕开其下载环节。单张失败只跳过该张。 */
+async function toImageDataUrl(url) {
+    const res = await fetch(url, { signal: AbortSignal.timeout(30000), headers: { 'User-Agent': 'Actor-CMS' } });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const type = String(res.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+    if (!type.startsWith('image/')) throw new Error(`内容不是图片（${type || '未知类型'}）`);
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length > 45 * 1024 * 1024) throw new Error('图片超过 45MB（MiMo 上限 50MB）');
+    return `data:${type};base64,${buf.toString('base64')}`;
+}
+
 /** 调 MiMo 多模态审核一条内容 */
 async function reviewContent(ctx, { text, images }) {
     const { baseUrl, key, model } = llmConfig(ctx);
     if (!key) throw new Error('未配置 MiMo Key（可继承 weibo-watch 配置）');
     const picked = sampleIndexes(images.length, cfg(ctx).sampleCount);
     const content = [{ type: 'text', text: PROMPT + '\n\n【待审内容】\n' + text }];
-    picked.forEach(i => content.push({ type: 'image_url', image_url: { url: images[i] } }));
+    // 优先本地预取转 base64；全部预取失败时退回原始 URL 让 MiMo 自行下载
+    const skipped = [];
+    for (const i of picked) {
+        try {
+            content.push({ type: 'image_url', image_url: { url: await toImageDataUrl(images[i]) } });
+        } catch (e) {
+            skipped.push(i + 1);
+            ctx.log(`图片预取失败（第 ${i + 1} 张）: ${images[i]} → ${e.message}`);
+        }
+    }
+    if (picked.length && content.length === 1) {
+        picked.forEach(i => content.push({ type: 'image_url', image_url: { url: images[i] } }));
+        skipped.length = 0;
+    }
     const res = await fetch(baseUrl + '/chat/completions', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
@@ -201,12 +256,117 @@ async function reviewContent(ctx, { text, images }) {
         throw new Error(`模型未返回正文（finish_reason=${choice.finish_reason || '?'}，可能 token 不足）`);
     }
     const verdict = parseVerdict(msg.content);
-    return { verdict, sampled: picked, total: images.length, tokens: json.usage || null, finish: choice.finish_reason };
+    return { verdict, sampled: picked, total: images.length, tokens: json.usage || null, finish: choice.finish_reason, skipped };
+}
+
+/* ---------------- 邮件提醒 ---------------- */
+
+const FAIL_MAIL_INTERVAL = 60 * 60 * 1000; // 整轮失败提醒限流：60 分钟内不重复
+
+function actionText(r) {
+    if (r.error) return '审核异常（已按未通过处理）';
+    if (r.action === 'approved') return '已自动放行';
+    if (r.action === 'suggested-pass') return '建议通过（待人工放行）';
+    return '未通过（待人工复审）';
+}
+
+function issueUrlOf(repo, number) {
+    return `https://github.com/${repo}/issues/${number}`;
+}
+
+/** 组装一轮审核的提醒邮件内容。导出供测试 */
+function buildRoundMail(results, cfgAll) {
+    const repo = String(cfgAll.repo || '').trim();
+    const reviewUrl = String(cfgAll.mailReviewUrl || '').trim();
+    const needHuman = results.filter(r => r.action === 'rejected' || r.action === 'suggested-pass');
+    const passing = results.length - needHuman.length;
+    const subject = needHuman.length
+        ? `AI 审核：${needHuman.length} 条待人工处理（本轮共 ${results.length} 条）`
+        : `AI 审核：本轮 ${results.length} 条全部通过`;
+
+    const lines = [`本轮审核 ${results.length} 条：待人工处理 ${needHuman.length}，自动放行 ${passing}。`];
+    if (needHuman.length) lines.push('', '—— 待人工处理 ——');
+    for (const r of needHuman) {
+        lines.push(`#${r.number} ${r.title}`, `  结论：${actionText(r)}`,
+            `  理由：${r.reason || '（无）'}${r.categories && r.categories.length ? '（类别：' + r.categories.join('、') + '）' : ''}`,
+            `  复审：${issueUrlOf(repo, r.number)}`);
+    }
+    if (results.length > needHuman.length) {
+        lines.push('', '—— 本轮其余 ——');
+        for (const r of results.filter(r => r.action !== 'rejected' && r.action !== 'suggested-pass')) {
+            lines.push(`#${r.number} ${r.title} — ${actionText(r)}${r.reason ? '（' + r.reason + '）' : ''}`);
+        }
+    }
+    if (reviewUrl) lines.push('', `站内复审页：${reviewUrl}`);
+    lines.push('', `时间：${new Date().toLocaleString('zh-CN', { hour12: false })}`);
+
+    const itemHtml = r => `<li><b>#${r.number} ${escHtml(r.title)}</b> — ${escHtml(actionText(r))}` +
+        (r.reason ? `<br>理由：${escHtml(r.reason)}${r.categories && r.categories.length ? '（' + escHtml(r.categories.join('、')) + '）' : ''}` : '') +
+        `<br><a href="${issueUrlOf(repo, r.number)}">GitHub 复审</a></li>`;
+    const html = `<div style="font:14px/1.7 -apple-system,'PingFang SC',sans-serif;color:#222">` +
+        `<p>本轮审核 <b>${results.length}</b> 条：待人工处理 <b style="color:${needHuman.length ? '#c0392b' : '#1a7f37'}">${needHuman.length}</b>。</p>` +
+        (needHuman.length ? `<h4>待人工处理</h4><ul>${needHuman.map(itemHtml).join('')}</ul>` : '') +
+        (results.length > needHuman.length ? `<h4>本轮其余</h4><ul>${results.filter(r => r.action !== 'rejected' && r.action !== 'suggested-pass').map(itemHtml).join('')}</ul>` : '') +
+        (reviewUrl ? `<p><a href="${escHtml(reviewUrl)}">打开站内复审页</a></p>` : '') +
+        `</div>`;
+    return { subject, text: lines.join('\n'), html };
+}
+
+function escHtml(s) {
+    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/**
+ * 按一轮结果决定是否发提醒邮件（发送失败只记录，不影响审核主流程）。
+ *   - 整轮失败 → 发失败提醒（60 分钟限流）
+ *   - 有待人工条目（未通过 / 建议通过）→ 发汇总
+ *   - 全部通过 → 仅 mailOnEveryRun 开启时发摘要
+ */
+async function notifyRunOutcome(ctx, runResult) {
+    const m = mailConfig(ctx);
+    if (!m.enabled) return { skipped: true, reason: 'disabled' };
+    if (!m.host || !m.from || !m.to.length) return { skipped: true, reason: 'incomplete' };
+
+    let subject, text, html;
+    let isFail = false;
+    if (!runResult.ok) {
+        isFail = true;
+        const d = ctx.getData();
+        const last = d.lastFailMailAt ? new Date(d.lastFailMailAt).getTime() : 0;
+        if (Date.now() - last < FAIL_MAIL_INTERVAL) return { skipped: true, reason: 'fail-throttled' };
+        subject = 'AI 审核：本轮运行失败';
+        text = `AI 审核一轮未能完成：\n\n${runResult.error || '未知错误'}\n\n时间：${new Date().toLocaleString('zh-CN', { hour12: false })}\n请检查 GitHub 配置或网络。`;
+        html = `<div style="font:14px/1.7 -apple-system,'PingFang SC',sans-serif"><p>AI 审核一轮未能完成：</p><pre style="white-space:pre-wrap">${escHtml(runResult.error || '未知错误')}</pre><p>请检查 GitHub 配置或网络。</p></div>`;
+    } else {
+        const results = Array.isArray(runResult.results) ? runResult.results : [];
+        if (!results.length) return { skipped: true, reason: 'empty' };
+        const needHuman = results.filter(r => r.action === 'rejected' || r.action === 'suggested-pass');
+        if (!needHuman.length && !m.onEveryRun) return { skipped: true, reason: 'all-pass' };
+        ({ subject, text, html } = buildRoundMail(results, cfg(ctx)));
+    }
+
+    try {
+        await mailer.sendMail({
+            host: m.host, port: m.port, user: m.user, pass: m.pass,
+            from: m.from, fromName: 'AI 内容审核', to: m.to, subject, text, html
+        });
+        ctx.setData({
+            ...ctx.getData(),
+            lastMailAt: new Date().toISOString(), lastMailStatus: subject, lastMailError: '',
+            ...(isFail ? { lastFailMailAt: new Date().toISOString() } : {}) // 失败提醒限流的起点
+        });
+        ctx.log('邮件提醒已发送:', subject);
+        return { ok: true, subject };
+    } catch (e) {
+        ctx.setData({ ...ctx.getData(), lastMailError: new Date().toISOString() + ' ' + e.message });
+        ctx.log('邮件提醒发送失败:', e.message);
+        return { ok: false, error: e.message };
+    }
 }
 
 /* ---------------- 审核一轮 ---------------- */
 
-async function runReview(ctx) {
+async function _runReview(ctx) {
     const c = cfg(ctx);
     const repo = String(c.repo || '').trim();
     const token = tokenOf();
@@ -283,12 +443,14 @@ async function runReview(ctx) {
                 results.push(record);
                 continue;
             }
-            const { verdict, sampled, tokens } = outcome;
+            const { verdict, sampled, tokens, skipped } = outcome;
             Object.assign(record, {
                 safe: verdict.safe, textSafe: verdict.textSafe, imageSafe: verdict.imageSafe,
                 categories: verdict.categories, reason: verdict.reason,
                 sampled: sampled.map(i => i + 1), tokens: tokens && tokens.total_tokens
             });
+            if (skipped && skipped.length) record.skippedImages = skipped;
+            const skippedNote = skipped && skipped.length ? `（其中第 ${skipped.join('、')} 张本地获取失败，AI 未审）` : '';
             // 通过：可自动放行（autoApprove 开启时）→ 换成 approved，交给 github-issues 固化
             if (verdict.safe && c.autoApprove) {
                 const keep = record.labels.filter(l => !pendingList.includes(l) && l !== c.rejectedLabel);
@@ -309,7 +471,7 @@ async function runReview(ctx) {
                 await gh(`/repos/${repo}/issues/${issue.number}/comments`, token, {
                     method: 'POST',
                     body: JSON.stringify({
-                        body: `🤖 AI 审核${verdict.safe ? '建议通过' : '未通过'}\n\n- 结论：${verdict.safe ? '安全' : '疑似违规'}\n- 文本：${verdict.textSafe ? '安全' : '有问题'}\n- 图片：${verdict.imageSafe ? '安全' : '有问题'}\n- 类别：${verdict.categories.length ? verdict.categories.join('、') : '无'}\n- 理由：${verdict.reason}\n- 抽查图片：第 ${sampled.map(i => i + 1).join('、')} 张 / 共 ${images.length} 张\n\n人工复审：改标签为 \`${c.approvedLabel}\` 即放行。`
+                        body: `🤖 AI 审核${verdict.safe ? '建议通过' : '未通过'}\n\n- 结论：${verdict.safe ? '安全' : '疑似违规'}\n- 文本：${verdict.textSafe ? '安全' : '有问题'}\n- 图片：${verdict.imageSafe ? '安全' : '有问题'}\n- 类别：${verdict.categories.length ? verdict.categories.join('、') : '无'}\n- 理由：${verdict.reason}\n- 抽查图片：第 ${sampled.map(i => i + 1).join('、')} 张 / 共 ${images.length} 张${skippedNote}\n\n人工复审：改标签为 \`${c.approvedLabel}\` 即放行。`
                     })
                 });
                 record.action = verdict.safe ? 'suggested-pass' : 'rejected';
@@ -333,9 +495,54 @@ async function runReview(ctx) {
     return { ok: true, results, status: ctx.getData().lastStatus };
 }
 
+/** 一轮审核 + 邮件提醒（提醒失败只记日志，不影响审核结果） */
+async function runReview(ctx) {
+    let result;
+    try {
+        result = await _runReview(ctx);
+    } catch (e) {
+        result = { ok: false, error: e.message };
+    }
+    try {
+        await notifyRunOutcome(ctx, result);
+    } catch (e) {
+        ctx.log('邮件提醒异常:', e.message);
+    }
+    return result;
+}
+
 /* ---------------- 插件入口 ---------------- */
 
 module.exports = function (ctx) {
+    // AI 连接测试：最小 prompt 验证 baseUrl/key/model 是否可用（不入审核队列）
+    ctx.app.post('/api/plugins/ai-review/ai-test', async (req, res) => {
+        try {
+            const { baseUrl, key, model } = llmConfig(ctx);
+            if (!key) return res.status(400).json({ error: '未配置 AI Key（本插件或「倩一波日常」均未填）' });
+            const t0 = Date.now();
+            const r = await fetch(baseUrl + '/chat/completions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+                body: JSON.stringify({
+                    model,
+                    messages: [{ role: 'user', content: '回复两个字：正常' }],
+                    temperature: 0
+                }),
+                signal: AbortSignal.timeout(30000)
+            });
+            if (!r.ok) {
+                const t = await r.text().catch(() => '');
+                return res.status(500).json({ error: `AI 接口 HTTP ${r.status}：${t.slice(0, 120)}` });
+            }
+            const j = await r.json();
+            const reply = j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
+            if (!reply) return res.status(500).json({ error: 'AI 返回无内容：' + JSON.stringify(j).slice(0, 120) });
+            res.json({ ok: true, model, baseUrl, ms: Date.now() - t0, reply: String(reply).slice(0, 40) });
+        } catch (e) {
+            res.status(500).json({ error: 'AI 连接失败：' + e.message });
+        }
+    });
+
     ctx.app.post('/api/plugins/ai-review/run', async (req, res) => {
         try {
             res.json(await runReview(ctx));
@@ -392,6 +599,27 @@ module.exports = function (ctx) {
         }
     });
 
+    // 发送测试邮件（面板「发送测试邮件」按钮）
+    ctx.app.post('/api/plugins/ai-review/mail-test', async (req, res) => {
+        try {
+            const m = mailConfig(ctx);
+            if (!m.enabled) return res.status(400).json({ error: '邮件提醒未开启' });
+            if (!m.host || !m.from || !m.to.length) return res.status(400).json({ error: '请先填好 SMTP 服务器、发件人与收件人' });
+            await mailer.sendMail({
+                host: m.host, port: m.port, user: m.user, pass: m.pass,
+                from: m.from, fromName: 'AI 内容审核', to: m.to,
+                subject: 'AI 审核 · 测试邮件',
+                text: `这是一封测试邮件。\n\n收到即说明 AI 审核插件的邮件提醒配置可用。\n时间：${new Date().toLocaleString('zh-CN', { hour12: false })}`,
+                html: `<div style="font:14px/1.7 -apple-system,'PingFang SC',sans-serif"><p>这是一封<b>测试邮件</b>。</p><p>收到即说明 AI 审核插件的邮件提醒配置可用。</p></div>`
+            });
+            ctx.setData({ ...ctx.getData(), lastMailAt: new Date().toISOString(), lastMailStatus: '测试邮件已发送', lastMailError: '' });
+            res.json({ ok: true, message: '测试邮件已发送至 ' + m.to.join(', ') });
+        } catch (e) {
+            ctx.setData({ ...ctx.getData(), lastMailError: new Date().toISOString() + ' ' + e.message });
+            res.status(500).json({ error: e.message });
+        }
+    });
+
     // 定时轮询
     let lastPoll = Date.now();
     const tick = setInterval(() => {
@@ -406,4 +634,4 @@ module.exports = function (ctx) {
     ctx.onExport = null;
 };
 
-module.exports._internal = { extractImages, sampleIndexes, parseVerdict, PROMPT, readHistory, writeHistory, mergeHistory, HISTORY_MAX };
+module.exports._internal = { extractImages, sampleIndexes, parseVerdict, PROMPT, readHistory, writeHistory, mergeHistory, HISTORY_MAX, toImageDataUrl, mailConfig, buildRoundMail, notifyRunOutcome, FAIL_MAIL_INTERVAL };

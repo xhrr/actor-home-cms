@@ -32,7 +32,12 @@
         draggable: true,    // 允许鼠标/手指拖动
         fallDuration: 1800, // 松手后落回分界线的时长（ms，越大越缓慢）
         startSide: 'right', // 初始位置：right / left
-        mobileScale: 0.72   // 窄屏缩放（≤640px）
+        mobileScale: 0.72,  // 窄屏缩放（≤640px）
+        idleActions: true,      // 待机小动作（张望/伸懒腰/打盹）
+        gazeFollow: true,       // 视线跟随（鼠标方向轻微侧倾）
+        petCombo: true,         // 连摸 3 次触发超级开心（心形粒子）
+        sleepAfter: 60,         // 无操作多少秒后打盹（0 = 关闭睡眠节律）
+        feedEnabled: true       // 双击宠物投喂（切换吃东西帧）
     };
 
     function readConfig() {
@@ -75,7 +80,36 @@
         '60%{transform:translateY(0)}75%{transform:translateY(-3.5px)}100%{transform:translateY(0)}}' +
         '@keyframes hpHeart{0%{opacity:0;transform:translate(-50%,4px) scale(.6)}' +
         '35%{opacity:1}100%{opacity:0;transform:translate(-50%,-22px) scale(1)}}' +
-        '@media (prefers-reduced-motion: reduce){.hero-pet img{animation:none!important}}';
+        /* 视线跟随：整体侧倾（rAF 写 rotateX 通道之外的 rotate，作用于内层 flip 容器） */
+        '.hero-pet .hp-flip{will-change:transform;}' +
+        /* 待机小动作：张望（整体左右小幅平移+侧倾）/ 伸懒腰（stand 帧拉伸） */
+        '.hero-pet.hp-look img{animation:hpLook 2.2s ease-in-out;}' +
+        '@keyframes hpLook{0%,100%{transform:translateX(0) rotate(0)}' +
+        '25%{transform:translateX(-4%) rotate(-3deg)}55%{transform:translateX(3%) rotate(2.5deg)}' +
+        '80%{transform:translateX(-1.5%) rotate(-1deg)}}' +
+        '.hero-pet.hp-stretch img{animation:hpStretch 1.4s ease-in-out;}' +
+        '@keyframes hpStretch{0%,100%{transform:scale(1,1)}35%{transform:scale(.94,1.09) translateY(2px)}' +
+        '65%{transform:scale(1.05,.95)}}' +
+        /* 打盹：Zzz 气泡（纯 CSS 文本，不新增素材） */
+        '.hero-pet .hp-zzz{position:absolute;right:-.2em;top:-.4em;pointer-events:none;' +
+        'font:700 .95rem/1 var(--font-sans,system-ui,sans-serif);color:var(--fg-40,#9a938a);' +
+        'letter-spacing:.08em;opacity:0;}' +
+        '.hero-pet.hp-sleep .hp-zzz{opacity:1;}' +
+        '.hero-pet.hp-sleep .hp-zzz i{display:inline-block;font-style:normal;' +
+        'animation:hpZ 2.4s ease-in-out infinite;}' +
+        '.hero-pet.hp-sleep .hp-zzz i:nth-child(2){animation-delay:.4s;font-size:.8em;}' +
+        '.hero-pet.hp-sleep .hp-zzz i:nth-child(3){animation-delay:.8s;font-size:.62em;}' +
+        '.hero-pet.hp-sleep img{animation:hpDoze 3.2s ease-in-out infinite;}' +
+        '@keyframes hpZ{0%{opacity:0;transform:translateY(2px)}30%{opacity:.9}' +
+        '100%{opacity:0;transform:translateY(-14px)}}' +
+        '@keyframes hpDoze{0%,100%{transform:scale(1.02,.94)}50%{transform:scale(1,.98)}}' +
+        /* 超级开心：连摸 3 次触发，心形粒子 ×5 上浮消散 */
+        '.hero-pet .hp-heart{position:absolute;left:50%;top:-.2em;pointer-events:none;' +
+        'color:#e58aa8;font-size:1rem;animation:hpHeartFly 1.1s ease-out forwards;}' +
+        '@keyframes hpHeartFly{0%{opacity:0;transform:translate(0,6px) scale(.5)}' +
+        '25%{opacity:1}100%{opacity:0;transform:translate(var(--hx,0),-30px) scale(1.15)}}' +
+        '@media (prefers-reduced-motion: reduce){.hero-pet img{animation:none!important}' +
+        '.hero-pet .hp-zzz,.hero-pet .hp-heart{display:none!important}}';
 
     function ensureStyle() {
         if (document.getElementById('heroPetStyle')) return;
@@ -93,7 +127,8 @@
     var POSES = {
         idle: PET_BASE + 'assets/pom-idle.png',
         stand: PET_BASE + 'assets/pom-stand.png',
-        run: PET_BASE + 'assets/pom-run.png'
+        run: PET_BASE + 'assets/pom-run.png',
+        eat: PET_BASE + 'assets/pom-eat.png'
     };
     var PET_RATIO = 200 / 192; // 画布宽 / 高
 
@@ -197,6 +232,7 @@
     /* ---------- 蹦跳移动 ---------- */
     function walkTo(targetX) {
         if (!ready) return;
+        wake();                                 // 走动即唤醒（清打盹/小动作）
         targetX = clamp(targetX, 6, maxX());
         if (Math.abs(targetX - x) < 4) return;
         // 素材朝左（头在左、尾在右）：往左保持朝向，往右翻转
@@ -220,19 +256,86 @@
         schedule();
     }
 
-    /* ---------- 互动：打招呼（冒爱心 + 轻跳） ---------- */
+    /* ---------- 互动：打招呼（冒爱心 + 轻跳）；连摸 3 次升级超级开心 ---------- */
     function happy() {
         if (!pet) return;
+        wake();                                 // 任何互动都先唤醒
+        // 连击计数：2 秒内摸满 3 次且开启 petCombo → 超级开心
+        var now = Date.now();
+        if (now - lastPetAt > 2000) petCount = 0;
+        lastPetAt = now;
+        petCount++;
+        if (cfg.petCombo !== false && petCount >= 3) {
+            petCount = 0;
+            superHappy();
+            return;
+        }
         pet.classList.remove('hp-happy');
         void pet.offsetWidth;
         pet.classList.add('hp-happy');
         setTimeout(function () { pet.classList.remove('hp-happy'); }, 900);
     }
 
+    /** 超级开心：三连跳 + 一串心形粒子（纯 CSS，零新增素材） */
+    function superHappy() {
+        if (!pet) return;
+        wake();
+        happy();
+        // 心形粒子：5 颗，随机横向散开
+        for (var i = 0; i < 5; i++) {
+            (function (i) {
+                setTimeout(function () {
+                    if (!pet) return;
+                    var h = document.createElement('span');
+                    h.className = 'hp-heart';
+                    h.textContent = '♥';
+                    h.style.setProperty('--hx', ((i - 2) * 14 + (Math.random() * 10 - 5)).toFixed(0) + 'px');
+                    h.style.left = (50 + (i - 2) * 9) + '%';
+                    pet.appendChild(h);
+                    setTimeout(function () { h.remove(); }, 1200);
+                }, i * 110);
+            })(i);
+        }
+        // 三连小跳：原地快速走三步（walkTo 到自身附近会忽略，故直接小位移）。
+        // walkTo 需要 walk 动画走完才有落点回 idle；每跳时长 < 间隔即可衔接。
+        var back = x;
+        var step = Math.max(30, s(40));
+        walkTo(x - step);
+        setTimeout(function () { if (ready) walkTo(back); }, 500);
+        setTimeout(function () {
+            if (!ready) return;
+            walkTo(back + step);
+            // 第三跳走完确保回 idle 趴下（walkTo 内部会 setPose('idle')，这里兜底）
+            setTimeout(function () {
+                if (ready && !walk && !fall && !drag && !isSleeping()) setPose('idle');
+            }, 700);
+        }, 1000);
+    }
+
+    /** 投喂：切换吃东西帧片刻，吃完开心 + 冒一颗心 */
+    var eating = null;                      // { until }
+    function feed() {
+        if (!pet || !ready) return;
+        wake();
+        walk = null; fall = null;
+        pet.classList.remove('hp-moving', 'hp-fall', 'hp-look', 'hp-stretch');
+        setPose('eat');
+        eating = { until: Date.now() + 2600 };
+        schedule();
+        setTimeout(function () {
+            if (!pet || !eating) return;
+            eating = null;
+            if (!busy() && !isSleeping()) setPose('idle');
+            landSquash();
+            happy();
+        }, 2600);
+    }
+
     /* ---------- 拖拽：按住拖走，松手落回分界线 ---------- */
     function onPointerDown(e) {
         if (!ready || !cfg.draggable || !pet || e.button > 0) return;
         e.preventDefault();
+        wake();                                 // 拎起即唤醒
         walk = null; fall = null;
         pet.classList.remove('hp-moving', 'hp-fall');
         drag = { startX: e.clientX, startY: e.clientY, petX: x, petY: y, moved: false };
@@ -270,6 +373,110 @@
         } else {
             happy();
         }
+    }
+
+    /* ---------- 行为系统：待机小动作 / 打盹睡眠 / 视线跟随 ----------
+       三者共享「是否正忙」判定：移动/拖拽/下落/睡觉时不出小动作；
+       任何交互（点/拖/走）都会重置睡眠计时并打断当前小动作。 */
+    var lastPetAt = 0, petCount = 0;        // 连摸计数
+    var idleTimer = null, actionUntil = 0;  // 小动作调度
+    var lastActive = 0, sleepCheck = null;  // 睡眠节律
+    var tiltTarget = 0, tiltCur = 0;        // 视线跟随侧倾（deg）
+    var gazeRaf = 0;
+
+    function busy() { return !ready || walk || fall || drag || eating; }
+
+    /** 交互唤醒：清小动作/打盹状态，重置睡眠计时 */
+    function wake() {
+        lastActive = Date.now();
+        if (!pet) return;
+        if (pet.classList.contains('hp-sleep')) {
+            pet.classList.remove('hp-sleep');
+            setPose('stand');                   // 醒来先站一下
+            setTimeout(function () { if (!busy() && !isSleeping()) setPose('idle'); }, 700);
+        }
+        pet.classList.remove('hp-look', 'hp-stretch');
+        actionUntil = 0;
+        if (cfg.sleepAfter > 0) armSleep();
+    }
+
+    function isSleeping() { return !!(pet && pet.classList.contains('hp-sleep')); }
+
+    /** 睡眠节律：sleepAfter 秒无交互 → 趴下打盹（Zzz）；任何 wake() 唤醒 */
+    function armSleep() {
+        if (sleepCheck) return;
+        sleepCheck = setInterval(function () {
+            if (!ready || busy() || isSleeping()) return;
+            if (cfg.sleepAfter <= 0) { clearInterval(sleepCheck); sleepCheck = null; return; }
+            if (Date.now() - lastActive >= cfg.sleepAfter * 1000) {
+                pet.classList.add('hp-sleep');
+                setPose('idle');
+            }
+        }, 4000);
+    }
+
+    /** 待机小动作调度：随机 8–20s 触发一次（张望 / 伸懒腰 / 短暂打盹） */
+    function armIdle() {
+        if (idleTimer) return;
+        var tick = function () {
+            idleTimer = setTimeout(function () {
+                idleTimer = null;
+                if (!ready || cfg.idleActions === false || busy() || isSleeping()) { armIdle(); return; }
+                if (Date.now() - lastActive < 5000) { armIdle(); return; }   // 刚互动过，让位
+                var roll = Math.random();
+                if (roll < 0.4) {                       // 张望
+                    pet.classList.remove('hp-look');
+                    void pet.offsetWidth;
+                    pet.classList.add('hp-look');
+                    actionUntil = Date.now() + 2200;
+                    setTimeout(function () { pet && pet.classList.remove('hp-look'); }, 2300);
+                } else if (roll < 0.7) {                // 伸懒腰（站起→趴回）
+                    setPose('stand');
+                    pet.classList.remove('hp-stretch');
+                    void pet.offsetWidth;
+                    pet.classList.add('hp-stretch');
+                    setTimeout(function () { pet && pet.classList.remove('hp-stretch'); }, 1450);
+                    setTimeout(function () { if (!busy() && !isSleeping()) setPose('idle'); }, 1400);
+                } else {                                // 短暂打盹（不进完整睡眠，5s 后自然醒）
+                    pet.classList.add('hp-sleep');
+                    setTimeout(function () {
+                        if (pet && pet.classList.contains('hp-sleep') &&
+                            Date.now() - lastActive >= 5000) {
+                            pet.classList.remove('hp-sleep');
+                        }
+                    }, 5000);
+                }
+                armIdle();
+            }, 8000 + Math.random() * 12000);
+        };
+        tick();
+    }
+
+    /** 视线跟随：hero 内鼠标位置 → 宠物朝向侧倾 ±4°（rAF 平滑逼近） */
+    function onGaze(e) {
+        if (!ready || cfg.gazeFollow === false || reduceMotion) return;
+        if (!hero || !hero.contains(e.target)) { tiltTarget = 0; return; }
+        var r = pet.getBoundingClientRect();
+        var cx = r.left + r.width / 2;
+        // 鼠标在宠物左侧 → 向左倾（素材头在左）；限幅 4°
+        tiltTarget = clamp((cx - e.clientX) / 260, -1, 1) * 4;
+        if (!gazeRaf) gazeStep();
+    }
+    function gazeStep() {
+        gazeRaf = requestAnimationFrame(function () {
+            gazeRaf = 0;
+            if (!pet) return;
+            tiltCur += (tiltTarget - tiltCur) * 0.12;
+            if (Math.abs(tiltTarget - tiltCur) < 0.05 && Math.abs(tiltCur) < 0.05) {
+                tiltCur = 0;
+                pet.querySelector('.hp-flip').style.transform =
+                    'scaleX(var(--hp-dir,1)) rotate(0deg)';
+                return;
+            }
+            pet.querySelector('.hp-flip').style.transform =
+                'scaleX(var(--hp-dir,1)) rotate(' + tiltCur.toFixed(2) + 'deg)';
+            gazeRaf = requestAnimationFrame(gazeStep);
+        });
     }
 
     /* ---------- 点击 hero 移动 / 点击宠物互动 ---------- */
@@ -319,10 +526,19 @@
         flip.className = 'hp-flip';
         flip.appendChild(imgEl);
         pet.appendChild(flip);
+
+        // 打盹气泡（Zzz，纯 CSS 动画；睡眠/打盹类名激活时可见）
+        var zzz = document.createElement('span');
+        zzz.className = 'hp-zzz';
+        zzz.setAttribute('aria-hidden', 'true');
+        zzz.innerHTML = '<i>Z</i><i>z</i><i>z</i>';
+        pet.appendChild(zzz);
+
         document.body.appendChild(pet);
 
         x = (cfg.startSide === 'left') ? 6 : maxX();
         ready = true;
+        lastActive = Date.now();
         applyFrame();
 
         pet.addEventListener('pointerdown', onPointerDown);
@@ -330,11 +546,25 @@
         window.addEventListener('pointerup', endDrag);
         window.addEventListener('pointercancel', endDrag);
         document.addEventListener('click', onDocClick, false);
-        window.addEventListener('scroll', schedule, { passive: true });
+        if (cfg.feedEnabled !== false) {
+            pet.addEventListener('dblclick', function (e) {
+                e.preventDefault();
+                feed();
+            });
+        }
+        if (cfg.gazeFollow !== false && !reduceMotion) {
+            document.addEventListener('pointermove', onGaze, { passive: true });
+        }
+        window.addEventListener('scroll', function () { wake(); schedule(); }, { passive: true });
         window.addEventListener('resize', function () {
             x = clamp(x, 6, maxX());
+            wake();
             schedule();
         }, { passive: true });
+        // 行为系统：待机小动作 + 睡眠节律
+        lastActive = Date.now();
+        armIdle();
+        if (cfg.sleepAfter > 0) armSleep();
         setTimeout(schedule, 300);              // 分界线受字体/图片加载影响，迟一拍对齐
     }
 

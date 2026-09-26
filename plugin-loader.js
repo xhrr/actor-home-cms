@@ -105,9 +105,26 @@ function setPluginData(name, data) {
     return data;
 }
 
+/* ---------------- 插件定时器注册表 ----------------
+ * toggle 会全量重跑插件入口，插件自管 setInterval 会泄漏（事故 24）。
+ * 统一经 ctx.cron 注册，重载前统一清理。 */
+const pluginTimers = new Map(); // name -> Map<id, timer>
+
+function clearPluginTimers(name) {
+    const timers = pluginTimers.get(name);
+    if (!timers) return;
+    for (const t of timers.values()) clearInterval(t);
+    pluginTimers.delete(name);
+}
+
+function clearAllPluginTimers() {
+    for (const name of [...pluginTimers.keys()]) clearPluginTimers(name);
+}
+
 /* ---------------- 加载 ---------------- */
 
 function loadEnabledPlugins(app) {
+    clearAllPluginTimers(); // 幂等重载：先清全部插件定时器
     const plugins = scanPlugins().filter(p => p.enabled);
     const loaded = [];
 
@@ -126,6 +143,18 @@ function loadEnabledPlugins(app) {
                 setData: data => setPluginData(plugin.name, data),
                 log: (...args) => console.log(`[plugin:${plugin.name}]`, ...args),
                 onExport: null,
+                cron: (id, intervalMs, fn) => {
+                    let timers = pluginTimers.get(plugin.name);
+                    if (!timers) { timers = new Map(); pluginTimers.set(plugin.name, timers); }
+                    const key = String(id);
+                    if (timers.has(key)) clearInterval(timers.get(key));
+                    const t = setInterval(() => {
+                        try { Promise.resolve(fn()).catch(e => console.error(`[plugin:${plugin.name}] cron ${id} 失败:`, e.message)); }
+                        catch (e) { console.error(`[plugin:${plugin.name}] cron ${id} 失败:`, e.message); }
+                    }, intervalMs);
+                    t.unref && t.unref();
+                    timers.set(key, t);
+                },
                 media: require('./lib/media-store') // 媒体库：addRemote/removeRemote/listRemote
             };
 

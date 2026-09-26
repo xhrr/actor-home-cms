@@ -1,34 +1,17 @@
 /**
- * 倩一波日常插件（微博行程监控，AI 解析版）
- * 抓取指定微博账号的微博（通过浏览器 Cookie 注入），筛选“同步X月行程”类微博，
- * 交给 LLM（默认小米 MiMo V2.5）解析为结构化行程（含同项目阶段合并、公告提取），更新到 actor-schedule。
+ * 倩一波日常插件（v2 · 知更数据消费端）
+ *
+ * 社交数据获取统一由知更（Zhigeng）完成，本插件不再直接抓取微博。
+ * 职责：从知更 API 拉取微博博主的新作品 → 筛选行程微博 → LLM 解析为结构化行程
+ * （含同项目阶段合并、公告提取）→ 更新到 actor-schedule。
+ *
+ * 配置：知更地址/口令/博主、关键词、目标月份、AI 凭据。
+ * 运行态：processed（已处理 work_id）、lastSync/lastStatus 等在同插件数据内。
  */
 const core = require('../../lib/core');
 
-const UA_MOBILE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1';
-const MAX_PAGES = 3; // 最多抓取 3 页（每页约 10 条）
-
 /* ---------------- 通用 ---------------- */
 
-function stripHtml(html) {
-    return String(html || '')
-        .replace(/<br\s*\/?\s*>/gi, '\n')
-        .replace(/<[^>]+>/g, '')
-        .replace(/&nbsp;/g, ' ')
-        .replace(/&amp;/g, '&')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&quot;/g, '"')
-        .replace(/&#39;|&apos;/g, "'")
-        .replace(/\u200b/g, '')
-        .trim();
-}
-
-function normalizeUid(uid) {
-    return String(uid || '').trim().replace(/[^0-9]/g, '');
-}
-
-/** 判断是否为行程微博：标题含“同步/更新/行程”且提到月份（如 8月） */
 function isScheduleWeibo(text, keyword) {
     const kw = String(keyword || '').trim();
     const list = kw ? kw.split(/[,，\s]+/).filter(Boolean) : ['同步', '更新'];
@@ -37,9 +20,76 @@ function isScheduleWeibo(text, keyword) {
     return hasKw && hasMonth && /行程|安排|通告|档期/.test(text);
 }
 
-/** 正文是否提到目标月份（如「同步8月行程」→ mentionsMonth(text, 8)===true） */
-function mentionsMonth(text, month) {
-    return [...String(text || '').matchAll(/(\d{1,2})月/g)].some(m => parseInt(m[1], 10) === month);
+/**
+ * 从行程微博文本识别目标月份：优先「同步/更新X月行程」，其次任意「X月行程」，再次正文第一个「X月」。
+ * 微博发布时间不定（可能提前一月、提前几天，甚至月初发当月），故月份以微博自述为准，不依赖「当前是几月」。
+ * 返回 1-12 或 null。
+ */
+function extractScheduleMonth(text) {
+    const s = String(text || '');
+    const m = s.match(/(?:同步|更新)\s*(\d{1,2})\s*月\s*(?:行程|安排|通告|档期)/)
+        || s.match(/(\d{1,2})\s*月\s*(?:行程|安排|通告|档期)/)
+        || s.match(/(\d{1,2})\s*月/);
+    if (!m) return null;
+    const month = parseInt(m[1], 10);
+    return (month >= 1 && month <= 12) ? month : null;
+}
+
+/**
+ * 按微博发布时间推断行程年份：目标月份 ≥ 发布月份 → 同年；小于 → 跨到次年。
+ * 例：9/21 发「同步9月行程」→ 当年 9 月；12/28 发「同步1月行程」→ 次年 1 月。
+ * publish_time 为秒级时间戳（显式按东八区取发布月，与 xhs-gallery-sync 同口径）。
+ */
+function inferYear(month, publishTime) {
+    const sec = Number(publishTime) || 0;
+    if (!sec) return new Date().getFullYear();
+    const ms = sec > 1e12 ? sec : sec * 1000;
+    const d = new Date(ms + 8 * 3600 * 1000);
+    const publishMonth = d.getUTCMonth() + 1;
+    return month >= publishMonth ? d.getUTCFullYear() : d.getUTCFullYear() + 1;
+}
+
+function dedupe(list) {
+    return list.filter((w, i, arr) => arr.findIndex(x => x.id === w.id) === i);
+}
+
+/* ---------------- 知更 API ---------------- */
+
+function zhigengBase(config) {
+    return String(config.zhigengUrl || 'http://127.0.0.1:3223').trim().replace(/\/+$/, '');
+}
+
+async function zhigengFetch(config, path) {
+    const res = await fetch(zhigengBase(config) + path, {
+        headers: { 'X-Auth-Token': String(config.zhigengToken || '') },
+        signal: AbortSignal.timeout(20000)
+    });
+    if (res.status === 401) throw new Error('知更口令无效（检查插件设置中的访问口令）');
+    if (!res.ok) throw new Error(`知更接口 HTTP ${res.status}: ${path}`);
+    return res.json();
+}
+
+/** 拉取知更里微博平台的最新作品（page_size 内按发布时间降序） */
+async function fetchWeiboWorks(config) {
+    const qs = new URLSearchParams({ platform: 'weibo', page: '1', page_size: '50' });
+    if (String(config.creatorId || '').trim()) {
+        qs.set('creator_id', String(config.creatorId).trim());
+    }
+    const data = await zhigengFetch(config, '/api/works?' + qs.toString());
+    return (data.items || []).map(w => ({
+        id: w.work_id,
+        text: String(w.description || w.title || '').trim(),
+        title: String(w.title || '').trim(),
+        publish_time: w.publish_time || 0,
+        source_url: w.source_url || ''
+    }));
+}
+
+/** 知更连通性 + 微博博主列表（面板展示用） */
+async function fetchWeiboCreators(config) {
+    const data = await zhigengFetch(config, '/api/creators');
+    return (data || []).filter(c => c.platform === 'weibo')
+        .map(c => ({ id: c.id, uid: c.platform_uid, name: c.display_name || c.platform_uid, status: c.status }));
 }
 
 /* ---------------- AI 解析 ---------------- */
@@ -52,11 +102,11 @@ async function parseWithLLM(text, config, target) {
     const base = String(config.llmBaseUrl || '').trim().replace(/\/+$/, '') || 'https://api.xiaomimimo.com/v1';
     const key = String(config.llmKey || '').trim();
     const model = String(config.llmModel || '').trim() || 'Mimo-V2.5';
-    if (!key) throw new Error('未配置 AI 解析 Key（插件设置中填写 AI Key）');
+    if (!key) throw new Error('未配置 AI Key（插件设置中填写 AI Key）');
     const ty = (target && target.year) || new Date().getFullYear();
     const tm = (target && target.month) || new Date().getMonth() + 1;
 
-    const prompt = `你是演员行程解析助手。把微博行程正文解析为结构化 JSON。当前只监控 ${ty} 年 ${tm} 月的行程。
+    const prompt = `你是演员行程解析助手。把微博行程正文解析为结构化 JSON。目标月份是 ${ty} 年 ${tm} 月（由微博标题「同步${tm}月行程」识别，年份按发布时间推断）。
 
 规则：
 1. 只提取 ${ty} 年 ${tm} 月的行程安排；正文中其他月份的安排一律忽略，不要输出。
@@ -65,7 +115,7 @@ async function parseWithLLM(text, config, target) {
 4. 城市：取括号或地名（成都、西安、横店、川渝地区等）；没有则空字符串。
 5. 无具体日期只有安排的（如“保密项目定妆3天 → 开机，地点：川渝地区”）：items 返回空数组，摘要写入 announcement，格式以「${tm}月行程公告：」开头，只保留安排主体、省略保密条款。
 6. 注意：只要正文包含 ${ty} 年 ${tm} 月的具体日期行程，announcement 一律输出空字符串 ""（不要把正文末尾的补充语句当公告）。
-7. 忽略话题标签（#...#）与“同步X月行程：”前缀。
+7. 忽略话题标签（#...#）与“同步X月行程：”前缀。正文里若同时出现多个「X月」（如标签日期），只认与目标月份一致的那些日期。
 
 只输出 JSON，不要任何解释或代码块标记：
 {"items":[{"date":"${ty}-${String(tm).padStart(2, '0')}-03","city":"成都","event":"新项目定妆 → 开机 → 杀青"}],"announcement":""}`;
@@ -111,62 +161,6 @@ async function parseWithLLM(text, config, target) {
     };
 }
 
-/* ---------------- 抓取 ---------------- */
-
-/** 抓取指定 uid 的最近微博（带 cookie），返回 [{id, text, created_at, pics}] */
-async function fetchWeibos(config, maxPages) {
-    const uid = normalizeUid(config.uid);
-    if (!uid) throw new Error('未配置微博 UID');
-    const cookie = (config.cookie || '').trim();
-    if (!cookie) throw new Error('未配置浏览器 Cookie（打开 m.weibo.cn 后从开发者工具复制任意请求的 Cookie 头）');
-
-    const results = [];
-    let sinceId = '';
-    for (let page = 0; page < (maxPages || MAX_PAGES); page++) {
-        const url = `https://m.weibo.cn/api/container/getIndex?containerid=230283${uid}&page_type=03${sinceId ? '&since_id=' + sinceId : ''}`;
-        const res = await fetch(url, {
-            headers: {
-                'User-Agent': UA_MOBILE,
-                'Referer': `https://m.weibo.cn/u/${uid}`,
-                'Accept': 'application/json, text/plain, */*',
-                'X-Requested-With': 'XMLHttpRequest',
-                'Cookie': cookie
-            },
-            signal: AbortSignal.timeout(15000)
-        });
-        const text = await res.text();
-        let json;
-        try { json = JSON.parse(text); } catch (e) { throw new Error(`微博接口响应异常（HTTP ${res.status}），Cookie 可能已失效: ${text.slice(0, 120)}`); }
-        if (json.ok !== 1) {
-            if (json.ok === -100) throw new Error('微博接口要求登录：Cookie 无效或已过期，请重新从浏览器复制');
-            throw new Error('微博接口返回异常: ' + JSON.stringify(json).slice(0, 200));
-        }
-        const cards = (json.data && json.data.cards) || [];
-        const mblogs = [];
-        for (const c of cards) {
-            if (c.card_type === 9 && c.mblog) mblogs.push(c.mblog);
-            if (c.card_group) {
-                for (const g of c.card_group) {
-                    if (g.card_type === 9 && g.mblog) mblogs.push(g.mblog);
-                }
-            }
-        }
-        if (!mblogs.length) break;
-        for (const m of mblogs) {
-            results.push({
-                id: m.id || m.mid || '',
-                text: stripHtml(m.text),
-                created_at: m.created_at || '',
-                pics: ((m.pics || []).map(p => p.large && p.large.url) || []).filter(Boolean)
-            });
-        }
-        sinceId = json.data.since_id || mblogs[mblogs.length - 1].id || '';
-        if (!sinceId) break;
-        await new Promise(r => setTimeout(r, 800)); // 礼貌限速
-    }
-    return results;
-}
-
 /* ---------------- 写入行程 ---------------- */
 
 function applyToSchedule(parsed, sourceUrl) {
@@ -203,122 +197,192 @@ function applyToSchedule(parsed, sourceUrl) {
     return { added, announcementUpdated };
 }
 
+/* ---------------- 主流程（拉取 → 筛选 → 解析 → 应用） ---------------- */
+
+function markProcessed(config, workId) {
+    const processed = Array.isArray(config.processed) ? config.processed : [];
+    if (!processed.includes(workId)) processed.push(workId);
+    // 只保留最近 500 条，防止无限增长
+    config.processed = processed.slice(-500);
+}
+
+/**
+ * 拉取并筛选未处理的行程微博（不碰 LLM）。
+ * 月份来自微博自身（「同步X月行程」），不再与「当前月份/配置月份」比对——
+ * 站长发布节奏不定（可能提前一月、也可能月初发当月），以微博自述为准才不漏。
+ * 每条命中自带 target（{year, month, label}），不同微博可能指向不同月份，各自独立解析。
+ */
+async function fetchAndFilter(ctx) {
+    const config = ctx.getData();
+    const works = await fetchWeiboWorks(config);
+    const processed = new Set(Array.isArray(config.processed) ? config.processed : []);
+    const hits = dedupe(works
+        .filter(w => w.text && isScheduleWeibo(w.text, config.keyword) && !processed.has(w.id))
+        .map(w => {
+            const month = extractScheduleMonth(w.text);
+            if (!month) return null;
+            return { ...w, target: { year: inferYear(month, w.publish_time), month, label: `${month}月` } };
+        })
+        .filter(Boolean));
+    return { config, works, hits };
+}
+
+/** 完整应用流程：解析全部命中并写入行程，标记已处理（每条用自己的 target） */
+async function applyAll(ctx, hits, config) {
+    const summary = [];
+    let totalAdded = 0, annUpdated = 0;
+    for (const hit of hits) {
+        const parsed = await parseWithLLM(hit.text, config, hit.target);
+        const { added, announcementUpdated } = applyToSchedule(parsed, hit.source_url);
+        totalAdded += added;
+        if (announcementUpdated) annUpdated++;
+        markProcessed(config, hit.id);
+        summary.push(`${hit.target.label}：${hit.text.slice(0, 24)}… → ${added} 条行程${announcementUpdated ? ' + 公告' : ''}`);
+    }
+    return { totalAdded, annUpdated, summary };
+}
+
 /* ---------------- 路由 ---------------- */
 
 module.exports = function (ctx) {
-    // 抓取 + AI 解析预览（不写入）
-    ctx.app.post('/api/plugins/weibo-watch/preview', async (req, res) => {
+    // 知更连通性 + 微博博主列表（面板展示）
+    ctx.app.get('/api/plugins/weibo-watch/zhigeng/creators', async (req, res) => {
         try {
             const config = ctx.getData();
-            const weibos = await fetchWeibos(config, MAX_PAGES);
-            const target = latestScheduleMonth(config.targetMonth);
-            const hits = dedupe(weibos.filter(w => isScheduleWeibo(w.text, config.keyword) && mentionsMonth(w.text, target.month)));
+            const creators = await fetchWeiboCreators(config);
+            res.json({ ok: true, creators });
+        } catch (e) {
+            res.status(500).json({ error: e.message });
+        }
+    });
+
+    // AI 连接测试：最小 prompt 验证 llmBaseUrl/llmKey/llmModel 是否可用
+    ctx.app.post('/api/plugins/weibo-watch/ai-test', async (req, res) => {
+        try {
+            const config = ctx.getData();
+            const base = String(config.llmBaseUrl || '').trim().replace(/\/+$/, '') || 'https://api.xiaomimimo.com/v1';
+            const key = String(config.llmKey || '').trim();
+            const model = String(config.llmModel || '').trim() || 'Mimo-V2.5';
+            if (!key) return res.status(400).json({ error: '未配置 AI Key' });
+            const t0 = Date.now();
+            const r = await fetch(base + '/chat/completions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+                body: JSON.stringify({
+                    model,
+                    messages: [{ role: 'user', content: '回复两个字：正常' }],
+                    temperature: 0
+                }),
+                signal: AbortSignal.timeout(30000)
+            });
+            if (!r.ok) {
+                const t = await r.text().catch(() => '');
+                return res.status(500).json({ error: `AI 接口 HTTP ${r.status}：${t.slice(0, 120)}` });
+            }
+            const j = await r.json();
+            const reply = j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
+            if (!reply) return res.status(500).json({ error: 'AI 返回无内容：' + JSON.stringify(j).slice(0, 120) });
+            res.json({ ok: true, model, baseUrl: base, ms: Date.now() - t0, reply: String(reply).slice(0, 40) });
+        } catch (e) {
+            res.status(500).json({ error: 'AI 连接失败：' + e.message });
+        }
+    });
+
+    // 拉取 + 筛选 + AI 解析预览（不写入、不标记）
+    ctx.app.post('/api/plugins/weibo-watch/preview', async (req, res) => {
+        try {
+            const { config, works, hits } = await fetchAndFilter(ctx);
             if (!hits.length) {
-                return res.json({ ok: true, hit: false, latest: weibos.slice(0, 5).map(w => w.text.slice(0, 50)), message: `最近微博中没有「${target.label}」的行程微博` });
+                return res.json({
+                    ok: true, hit: false,
+                    latest: works.slice(0, 5).map(w => (w.title || w.text).slice(0, 40)),
+                    message: works.length
+                        ? `知更最新 ${works.length} 条微博中没有未处理的行程微博（月份从「同步X月行程」自动识别）`
+                        : '知更中暂无微博作品（先在知更里触发一次扫描）'
+                });
             }
             const parsedAll = [];
             for (const hit of hits) {
-                const parsed = await parseWithLLM(hit.text, config, target);
-                parsedAll.push({ weibo: { id: hit.id, text: hit.text, date: hit.created_at, pics: hit.pics }, ...parsed });
+                const parsed = await parseWithLLM(hit.text, config, hit.target);
+                parsedAll.push({ weibo: hit, ...parsed });
             }
             const first = parsedAll[0];
             res.json({
-                ok: true, hit: true,
-                hits: parsedAll.map(p => ({ id: p.weibo.id, text: p.weibo.text.slice(0, 60), items: (p.items || []).length, hasAnnouncement: !!p.announcement })),
-                weibo: first.weibo, targetMonth: target.label, ...first
+                ok: true, hit: true, targetMonth: first.weibo.target.label,
+                hits: parsedAll.map(p => ({ id: p.weibo.id, month: p.weibo.target.label, text: p.weibo.text.slice(0, 60), items: (p.items || []).length, hasAnnouncement: !!p.announcement })),
+                weibo: { ...first.weibo, text: first.weibo.text.slice(0, 200) },
+                items: first.items, announcement: first.announcement
             });
         } catch (e) {
             res.status(500).json({ error: e.message });
         }
     });
 
-    // 抓取 + AI 解析 + 写入行程（处理所有命中的行程微博）
+    // 拉取 + 解析 + 写入行程（处理所有命中）
     ctx.app.post('/api/plugins/weibo-watch/apply', async (req, res) => {
         try {
-            const config = ctx.getData();
-            const weibos = await fetchWeibos(config, MAX_PAGES);
-            const target = latestScheduleMonth(config.targetMonth);
-            const hits = dedupe(weibos.filter(w => isScheduleWeibo(w.text, config.keyword) && mentionsMonth(w.text, target.month)));
+            const { config, works, hits } = await fetchAndFilter(ctx);
             if (!hits.length) {
-                return res.json({ ok: true, applied: 0, message: `最近微博中没有「${target.label}」的行程微博` });
+                ctx.setData({ ...config, lastSync: new Date().toISOString(),
+                    lastStatus: works.length ? `知更最新 ${works.length} 条中无未处理的行程微博` : '知更中暂无微博作品' });
+                return res.json({ ok: true, applied: 0, message: '没有未处理的行程微博' });
             }
-            const processed = Array.isArray(config.processed) ? config.processed : [];
-            let totalAdded = 0;
-            let annUpdated = 0;
-            const summary = [];
-            for (const hit of hits) {
-                const parsed = await parseWithLLM(hit.text, config, target);
-                const { added, announcementUpdated } = applyToSchedule(parsed, 'https://m.weibo.cn/status/' + hit.id);
-                totalAdded += added;
-                if (announcementUpdated) annUpdated++;
-                if (!processed.includes(hit.id)) processed.push(hit.id);
-                const am = (parsed.announcement && parsed.announcement.match(/^(\d{1,2})月/)) || [];
-                summary.push(`${am[1] || '?'}月：${added > 0 ? '新增 ' + added + ' 条' : ''}${parsed.announcement ? '公告' : ''}`);
-            }
-            const parts = [`处理 ${hits.length} 条行程微博`, `新增 ${totalAdded} 条日程`];
-            if (annUpdated) parts.push(`${annUpdated} 条公告更新`);
-            ctx.setData({ ...config, processed, lastStatus: parts.join('，'), lastSync: new Date().toISOString(), lastWeiboId: hits[0].id });
-            res.json({ ok: true, applied: totalAdded, announcementUpdated: annUpdated > 0, summary, message: parts.join('；') });
+            const { totalAdded, annUpdated, summary } = await applyAll(ctx, hits, config);
+            ctx.setData({ ...config, lastSync: new Date().toISOString(),
+                lastStatus: `处理 ${hits.length} 条，新增 ${totalAdded} 条行程${annUpdated ? ' + ' + annUpdated + ' 条公告' : ''}` });
+            res.json({ ok: true, applied: totalAdded, announcementUpdated: annUpdated > 0,
+                items: summary.map(s => ({ dateText: s, city: '', event: '' })),
+                message: `处理 ${hits.length} 条行程微博，新增 ${totalAdded} 条日程${annUpdated ? '，' + annUpdated + ' 条公告' : ''}` });
         } catch (e) {
+            const config = ctx.getData();
+            ctx.setData({ ...config, lastError: new Date().toISOString() + ' ' + e.message });
             res.status(500).json({ error: e.message });
         }
     });
 
-    ctx.app.get('/api/plugins/weibo-watch/status', (req, res) => {
+    // 状态（配置掩码 + 知更连通性）
+    ctx.app.get('/api/plugins/weibo-watch/status', async (req, res) => {
         const d = ctx.getData();
-        res.json({ ...d, cookie: d.cookie ? '***已配置***' : '', llmKey: d.llmKey ? '***已配置***' : '' });
+        let zhigeng = { ok: false, creators: [] };
+        try {
+            zhigeng = { ok: true, creators: await fetchWeiboCreators(d) };
+        } catch (e) {
+            zhigeng.error = e.message;
+        }
+        res.json({
+            // 空值语义：keyword 空串 = 用默认关键词（同步/更新）
+            zhigengUrl: d.zhigengUrl || 'http://172.23.0.1:3223',
+            zhigengToken: d.zhigengToken ? '***已配置***' : '',
+            creatorId: d.creatorId || '',
+            keyword: d.keyword === undefined ? '同步,更新' : d.keyword,
+            autoSync: d.autoSync !== false,
+            llmKey: d.llmKey ? '***已配置***' : '',
+            processed: Array.isArray(d.processed) ? d.processed.length : 0,
+            lastSync: d.lastSync, lastStatus: d.lastStatus, lastError: d.lastError,
+            zhigeng
+        });
     });
 
-    // 自动同步窗口：每月最后 3 天 + 次月前 3 天（如 8/29-31 与 9/1-3）
-    function inAutoWindow(d) {
-        const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-        const day = d.getDate();
-        return day <= 3 || day >= lastDay - 2;
-    }
-
-    // 自适应轮询：每 30 分钟检查一次窗口；窗口内每 3 小时尝试一次（lastAutoRun 记最近尝试）
-    const AUTO_INTERVAL = 3 * 60 * 60 * 1000;
-    const TICK = 30 * 60 * 1000;
-    const tick = setInterval(async () => {
+    // 自动同步：每小时检查一次知更新帖（与图集同步同节奏），命中即解析写入
+    ctx.cron('auto-sync', 60 * 60 * 1000, async () => {
         try {
             const config = ctx.getData();
             if (config.autoSync === false) return;
-            const now = new Date();
-            if (!inAutoWindow(now)) return;
-            const last = config.lastAutoRun ? new Date(config.lastAutoRun) : null;
-            if (last && now.getTime() - last.getTime() < AUTO_INTERVAL) return;
-            const weibos = await fetchWeibos(config, MAX_PAGES);
-            const target = latestScheduleMonth(config.targetMonth);
-            const hits = dedupe(weibos.filter(w => isScheduleWeibo(w.text, config.keyword) && mentionsMonth(w.text, target.month)));
+            if (!config.zhigengToken) return; // 未配置知更口令则不自动跑
+            const { config: cfg, hits } = await fetchAndFilter(ctx);
             if (hits.length) {
-                let totalAdded = 0;
-                for (const hit of hits) {
-                    const parsed = await parseWithLLM(hit.text, config, target);
-                    const { added } = applyToSchedule(parsed, 'https://m.weibo.cn/status/' + hit.id);
-                    totalAdded += added;
-                }
-                ctx.log('自动同步:', target.label, '命中', hits.length, '条，新增', totalAdded, '条');
+                const { totalAdded, annUpdated } = await applyAll(ctx, hits, cfg);
+                ctx.log('自动同步:', hits.map(h => h.target.label).join('/'), '命中', hits.length, '条，新增', totalAdded,
+                        '条', annUpdated ? `+ ${annUpdated} 条公告` : '');
             }
-            await ctx.setData({ ...config, lastAutoRun: now.toISOString() });
+            ctx.setData({ ...cfg, lastSync: new Date().toISOString(),
+                lastStatus: hits.length
+                    ? `命中 ${hits.length} 条行程微博（${hits.map(h => h.target.label).join('、')}），已解析应用`
+                    : '知更中暂无未处理的行程微博' });
         } catch (e) {
             ctx.log('自动同步失败:', e.message);
         }
-    }, TICK);
-    tick.unref && tick.unref();
+    });
 
     ctx.onExport = null;
 };
-
-/** 按微博 id 去重 */
-function dedupe(list) {
-    return list.filter((w, i, arr) => arr.findIndex(x => x.id === w.id) === i);
-}
-
-/** 目标月份：0 = 当月，1（默认）= 下个月 */
-function latestScheduleMonth(cfg) {
-    const now = new Date();
-    const n = parseInt(cfg, 10);
-    const offset = Number.isNaN(n) ? 1 : n;
-    const d = new Date(now.getFullYear(), now.getMonth() + offset, 1);
-    return { year: d.getFullYear(), month: d.getMonth() + 1, label: `${d.getMonth() + 1}月` };
-}

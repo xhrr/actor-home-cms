@@ -505,6 +505,7 @@
         if (top) {
             top.innerHTML = `
                 <p class="gallery-page__eyebrow">GALLERY</p>
+                <a class="gallery-moments-link" href="/newgallery.html"><span class="gml-text">${esc(T('gallery.momentsView', '拾光 · 单张照片墙'))}</span><span class="gml-arrow" aria-hidden="true">→</span></a>
                 <h1 class="gallery-page__title">${esc(pick(gallery, 'heading') || T('gallery.title', '写真'))}</h1>
                 <p class="gallery-page__desc">${esc(T('gallery.count', '共 {n} 个写真集', { n: albums.length }))}</p>
                 <div class="page-search">

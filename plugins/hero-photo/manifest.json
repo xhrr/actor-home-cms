@@ -1,0 +1,12 @@
+{
+  "name": "hero-photo",
+  "label": "首页粒子 hero",
+  "version": "1.0.0",
+  "description": "首页 hero 暗色电影化改版：保留站点照片与原有 hero 文案（桌面 .hero__media / 移动端 .hero__mobile 原样保留），叠加暗色遮罩、高密度粒子场（尘埃/波峰带/星芒/光斑/鼠标视差）。点击 hero 空白处，全部粒子汇聚成所选拼形（月牙/心形/五角星/皇冠/花开，支持每次随机），一次心跳后就地散开。",
+  "author": "Actor CMS",
+  "client": "client.js",
+  "server": "server.js",
+  "admin": "admin.js",
+  "inject": true,
+  "category": "display"
+}

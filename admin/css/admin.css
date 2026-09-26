@@ -1286,3 +1286,78 @@ a { text-decoration: none; color: inherit; }
     -webkit-tap-highlight-color: transparent;
 }
 .sidebar-backdrop.is-open { display: block; }
+
+/* ===== 插件管理台（页签 + 栅格 + 开关卡） ===== */
+.plugin-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.plugin-tab {
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid var(--line, #e5e7eb); background: var(--card, #fff); color: var(--muted, #6b7280);
+  border-radius: 999px; padding: 6px 14px; font-size: 13px; cursor: pointer; transition: all .15s;
+}
+.plugin-tab em { font-style: normal; font-size: 11px; opacity: .7; }
+.plugin-tab:hover { background: var(--bg, #f9fafb); color: var(--ink, #262832); }
+.plugin-tab.is-active { background: var(--accent, #4d6bfe); color: #fff; border-color: var(--accent, #4d6bfe); }
+
+.plugin-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px;
+}
+@media (max-width: 1080px) { .plugin-grid { grid-template-columns: 1fr; } }
+
+.plugin-card { align-self: start; }
+.plugin-card .plugin-card__header { gap: 10px; }
+.plugin-card__dot {
+  width: 9px; height: 9px; border-radius: 50%; background: #c5c9d6; flex-shrink: 0;
+}
+.plugin-card.is-on .plugin-card__dot { background: var(--ok, #14a35f); box-shadow: 0 0 0 3px rgba(20, 163, 95, .15); }
+
+.plugin-switch { display: inline-flex; align-items: center; cursor: pointer; margin-left: auto; flex-shrink: 0; }
+.plugin-switch input { display: none; }
+.plugin-switch .track {
+  width: 38px; height: 21px; border-radius: 999px; background: #d5d9e4;
+  position: relative; transition: background .18s;
+}
+.plugin-switch .track::after {
+  content: ''; position: absolute; top: 2px; left: 2px; width: 17px; height: 17px;
+  border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .25);
+  transition: transform .18s;
+}
+.plugin-switch input:checked + .track { background: var(--accent, #4d6bfe); }
+.plugin-switch input:checked + .track::after { transform: translateX(17px); }
+.muted { color: var(--muted, #9ca3af); }
+
+/* ========== 社交链接行：一条一张卡片 ==========
+   名称窄列 + 链接宽列 + 删除钮右贴（悬停变红）；
+   窄屏用 grid-areas：删除钮固定右上角，不悬空 */
+.list-item.social-item {
+    grid-template-columns: minmax(140px, 200px) 1fr auto;
+    align-items: center;
+    gap: 0.9rem;
+    padding: 0.8rem 1rem;
+    margin: 0.6rem 0;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-bg);
+}
+.list-item.social-item .btn--danger {
+    justify-self: end;
+    align-self: center;
+    color: var(--color-text-muted);
+    border-radius: 6px;
+    transition: color 0.15s, background 0.15s;
+}
+.list-item.social-item .btn--danger:hover {
+    color: var(--color-danger);
+    background: rgba(220, 53, 69, 0.08);
+}
+@media (max-width: 768px) {
+    .list-item.social-item {
+        grid-template-columns: 1fr auto;
+        grid-template-areas:
+            "name del"
+            "url  url";
+        align-items: start;
+    }
+    .list-item.social-item input[data-social-name] { grid-area: name; }
+    .list-item.social-item input[data-social-url]  { grid-area: url; }
+    .list-item.social-item .btn--danger { grid-area: del; align-self: start; }
+}

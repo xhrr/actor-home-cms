@@ -7,6 +7,11 @@
   "client": "client.js",
   "server": "server.js",
   "admin": "admin.js",
-  "assets": ["assets/"],
-  "modules": ["hello"]
+  "assets": [
+    "assets/"
+  ],
+  "modules": [
+    "hello"
+  ],
+  "category": "display"
 }

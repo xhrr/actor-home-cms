@@ -6,6 +6,67 @@
     <title data-i18n="title.gallery">写真</title>
     <meta name="description" content="演员写真集">
     <link rel="stylesheet" href="/css/editorial.css">
+    <style>
+        /* 拾光（单张照片墙）入口：头部右上角，移动端回落为普通链接 */
+        .gallery-page__top { position: relative; }
+        .gallery-moments-link {
+            position: absolute;
+            top: 0.3rem;
+            right: 0;
+            font-size: 0.85rem;
+            color: #8a867f;
+            text-decoration: none;
+            letter-spacing: 0.05em;
+            animation: gml-in 0.6s ease 0.15s both;
+        }
+        @keyframes gml-in { from { opacity: 0; transform: translateY(-4px); } }
+
+        /* 箭头：悬停轻推向前 */
+        .gml-arrow {
+            display: inline-block;
+            margin-left: 0.35em;
+            transition: transform 0.3s cubic-bezier(0.22, 0.61, 0.36, 1);
+        }
+        .gallery-moments-link:hover .gml-arrow { transform: translateX(5px); }
+
+        /* 下划线：自左划出 */
+        .gallery-moments-link::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: -4px;
+            height: 1px;
+            background: #111;
+            transform: scaleX(0);
+            transform-origin: left;
+            transition: transform 0.35s ease;
+        }
+        .gallery-moments-link:hover::after { transform: scaleX(1); }
+
+        /* 暖光扫过字符（「拾光」点题）：不支持 background-clip:text 的浏览器自动降级为纯色 */
+        @supports ((-webkit-background-clip: text) or (background-clip: text)) {
+            .gml-text {
+                background-image: linear-gradient(100deg, #8a867f 0%, #8a867f 38%, #d9a648 50%, #8a867f 62%, #8a867f 100%);
+                background-size: 250% 100%;
+                background-position: 110% 0;
+                -webkit-background-clip: text;
+                background-clip: text;
+                -webkit-text-fill-color: transparent;
+                transition: background-position 0.7s ease;
+            }
+            .gallery-moments-link:hover .gml-text { background-position: -10% 0; }
+        }
+
+        @media (max-width: 768px) {
+            .gallery-moments-link { font-size: 0.78rem; top: 0.15rem; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .gallery-moments-link { animation: none; }
+            .gallery-moments-link:hover .gml-arrow { transform: none; }
+            .gml-text, .gallery-moments-link::after { transition: none; }
+        }
+    </style>
     <script src="/js/config.js"></script>
     <script src="/js/i18n.js"></script>
     <script src="/js/cms.js"></script>
